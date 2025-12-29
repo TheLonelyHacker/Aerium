@@ -1086,3 +1086,46 @@ canvas {
 .hidden {
   display: none !important;
 }
+
+.air-advice {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.air-health.good .air-advice {
+  color: var(--good);
+}
+
+.air-health.medium .air-advice {
+  color: var(--medium);
+}
+
+.air-health.bad .air-advice {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 6px;
+  display: block;
+}
+
+.air-health.bad {
+  box-shadow: 0 0 0 1px rgba(248,113,113,0.3),
+              0 0 40px rgba(248,113,113,0.15);
+}
+
+.system-pill.running {
+  background: rgba(74,222,128,0.15);
+  border: 1px solid rgba(74,222,128,0.35);
+  color: var(--good);
+  box-shadow: 0 4px 14px rgba(74,222,128,0.25);
+}
+
+.system-pill.running .dot {
+  background: var(--good);
+}

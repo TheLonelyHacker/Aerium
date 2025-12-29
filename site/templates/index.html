@@ -48,11 +48,11 @@
   <h2>État du système</h2>
 
   <div class="system-status-row">
-    <!-- LEFT: existing content -->
     <div class="system-status-main">
       <div class="card air-health">
         <div class="air-status" id="air-status">—</div>
         <div class="air-sub" id="air-sub">CO₂ actuel · — ppm</div>
+        <div class="air-advice" id="air-advice">—</div>
       </div>
 
       <div class="overview-grid">
@@ -69,6 +69,11 @@
         <div class="overview-widget">
           <span class="label">Seuils CO₂</span>
           <span class="value" id="co2-thresholds">800 / 1200 ppm</span>
+          <!--
+          <span class="hint">
+            &lt; 800 : bon · 800–1200 : moyen · &gt; 1200 : mauvais
+          </span>
+          -->
         </div>
       </div>
     </div>
@@ -97,9 +102,7 @@
 <section class="card">
   <h2>À propos</h2>
   <p class="hint">
-    Aerium est un projet démontrant la surveillance intelligente de la qualité
-    de l’air via capteur CO₂, avec indicateurs visuels, seuils personnalisables
-    et export de données.
+    Aerium est un projet démontrant la surveillance intelligente de la qualité de l’air à partir de données mesurées et analysées en temps réel.
   </p>
 </section>
 {% endblock %}

@@ -54,6 +54,51 @@ function forceLayout(el) {
 }
 
 /* =====================================================
+   AIR QUALITY LOGIC
+===================================================== */
+
+function getAirQuality(ppm) {
+  if (ppm < goodThreshold) {
+    return {
+      level: "good",
+      label: "Bon",
+      advice: "Air sain",
+      color: "var(--good)",
+    };
+  }
+
+  if (ppm < badThreshold) {
+    return {
+      level: "medium",
+      label: "Moyen",
+      advice: "Air correct",
+      color: "var(--medium)",
+    };
+  }
+
+  return {
+    level: "bad",
+    label: "Mauvais",
+    advice: "Aérez immédiatement",
+    color: "var(--bad)",
+  };
+}
+
+/* =====================================================
+   SYSTEM STATE
+===================================================== */
+
+function applyAnalysisState(isRunning) {
+  analysisRunning = isRunning;
+
+  updateNavAnalysisState(isRunning);
+
+  if (isLivePage) {
+    isRunning ? hidePausedOverlay() : showPausedOverlay();
+  }
+}
+
+/* =====================================================
    NAVBAR
 ===================================================== */
 function initNavbar() {
@@ -131,18 +176,33 @@ async function refreshSystemState() {
 }
 
 function updateNavAnalysisState(isRunning) {
+  // Navbar
   const nav = document.getElementById("nav-analysis");
   const label = document.getElementById("nav-analysis-label");
-  if (!nav || !label) return;
 
-  nav.classList.remove("is-running", "is-paused");
+  // Overview system pill
+  const pill = document.querySelector(".system-pill");
 
-  if (isRunning) {
-    nav.classList.add("is-running");
-    label.textContent = "Analyse active";
-  } else {
-    nav.classList.add("is-paused");
-    label.textContent = "Analyse en pause";
+  // Navbar update
+  if (nav && label) {
+    nav.classList.remove("is-running", "is-paused");
+
+    if (isRunning) {
+      nav.classList.add("is-running");
+      label.textContent = "Analyse active";
+    } else {
+      nav.classList.add("is-paused");
+      label.textContent = "Analyse en pause";
+    }
+  }
+
+  // Overview pill update (safe even if not on overview page)
+  if (pill) {
+    pill.classList.toggle("running", isRunning);
+    pill.classList.toggle("paused", !isRunning);
+    pill.innerHTML = `<span class="dot"></span> ${
+      isRunning ? "Analyse active" : "Analyse en pause"
+    }`;
   }
 }
 
@@ -519,12 +579,8 @@ async function poll() {
   if (data.analysis_running === false) {
     analysisRunning = false;
 
-    updateNavAnalysisState(false);
+    applyAnalysisState(false);
     stopPolling(); // 🔥 stop polling loop
-
-    if (isLivePage) {
-      showPausedOverlay();
-    }
 
     return;
   }
@@ -599,20 +655,28 @@ resetBtn?.addEventListener("click", () => {
 function updateAirHealth(avgPPM) {
   const card = document.querySelector(".air-health");
   const status = document.getElementById("air-status");
+  const advice = document.getElementById("air-advice");
 
-  if (!card || !status) return;
+  if (!card || !status || !advice) return;
 
   card.className = "card air-health";
+
+  card.classList.remove("status-change");
+  void card.offsetWidth; // force reflow
+  card.classList.add("status-change");
 
   if (avgPPM < goodThreshold) {
     card.classList.add("good");
     status.textContent = "Excellent";
+    advice.textContent = "Air sain, aucune action nécessaire";
   } else if (avgPPM < badThreshold) {
     card.classList.add("medium");
     status.textContent = "Acceptable";
+    advice.textContent = "Surveillez la qualité de l’air";
   } else {
     card.classList.add("bad");
     status.textContent = "Mauvais";
+    advice.textContent = "Aérez la pièce dès que possible";
   }
 }
 
@@ -800,13 +864,19 @@ function updateCO2Thermo(value) {
    CSV ANALYTICS IMPORT
 ===================================================== */
 if (document.getElementById("csv-file")) {
-  document.getElementById("use-csv").onclick = () => {
-    document.getElementById("csv-upload").classList.remove("hidden");
-  };
+  const useCsvBtn = document.getElementById("use-csv");
+  const useAeriumBtn = document.getElementById("use-aerium");
+  const csvUpload = document.getElementById("csv-upload");
 
-  document.getElementById("use-aerium").onclick = () => {
-    document.getElementById("csv-upload").classList.add("hidden");
-  };
+  if (useCsvBtn && useAeriumBtn && csvUpload) {
+    useCsvBtn.onclick = () => {
+      csvUpload.classList.remove("hidden");
+    };
+
+    useAeriumBtn.onclick = () => {
+      csvUpload.classList.add("hidden");
+    };
+  }
 
   document.getElementById("csv-file").addEventListener("change", (e) => {
     const file = e.target.files[0];
