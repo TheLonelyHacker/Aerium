@@ -202,26 +202,183 @@ h2 {
    HERO SECTION
 ====================================================== */
 .hero {
-  max-width: 100%;
-  margin-bottom: 25px;
-  padding: 40px 25px;
-  border-radius: 18px;
+  position: relative;
+  padding: 32px 28px;
+  margin-bottom: 28px;
+
+  /* Card consistency */
   background: linear-gradient(
-    135deg,
-    rgba(74, 222, 128, 0.18),
-    rgba(11, 13, 18, 0.9)
+    180deg,
+    rgba(255,255,255,0.06),
+    rgba(11,13,18,0.95)
   );
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.06);
+
+  /* Depth */
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 30px 80px rgba(0,0,0,0.45);
 }
+
 
 .hero-content {
   max-width: 700px;
 }
 
 .hero h1 {
-  font-size: 2.4rem;
-  font-weight: 800;
-  margin-bottom: 10px;
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.hero {
+  position: relative;
+}
+.hero {
+  padding: 32px 28px;
+}
+
+.paused-box {
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.overview-widget.highlight {
+  border: 1px solid rgba(74,222,128,0.45);
+  background: linear-gradient(
+    180deg,
+    rgba(74,222,128,0.18),
+    rgba(255,255,255,0.02)
+  );
+  box-shadow: 0 0 0 1px rgba(74,222,128,0.15),
+              0 10px 30px rgba(0,0,0,0.4);
+}
+
+.air-health {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.air-health.paused {
+  background: rgba(248,113,113,0.08);
+  border-color: rgba(248,113,113,0.25);
+}
+
+
+.hero {
+  margin-bottom: 28px;
+}
+.hero {
+  margin-bottom: 28px;
+}
+.card {
+  margin-bottom: 28px;
+}
+.hero {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+
+
+.overview-widget.highlight .value {
+  font-size: 1.6rem;
+}
+
+.card + .card {
+  position: relative;
+}
+
+.system-pill {
+  margin: 14px 0 18px;
+}
+
+.system-pill.paused {
+  background: rgba(248,113,113,0.15);
+  border: 1px solid rgba(248,113,113,0.35);
+  box-shadow: 0 4px 14px rgba(248,113,113,0.25);
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+
+  /* Left border accent */
+  background:
+    linear-gradient(
+      180deg,
+      rgba(74,222,128,0.9),
+      rgba(74,222,128,0.0) 65%
+    );
+  mask:
+    linear-gradient(#000 0 0) left / 5px 100% no-repeat;
+}
+
+.hero-content {
+  max-width: 640px; /* slightly tighter than 700 */
+}
+
+.hero-actions {
+  margin-top: 18px;
+  padding: 12px;
+  display: inline-flex;
+  gap: 12px;
+
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+
+.hero-actions .link:not(.primary) {
+  background: rgba(255,255,255,0.06);
+  color: var(--muted);
+}
+
+.hero-actions .link:not(.primary):hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.1);
+}
+
+.hero {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 30px 80px rgba(0,0,0,0.4);
+}
+
+.system-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-top: 12px;
+}
+
+.system-pill .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.system-pill.paused {
+  background: rgba(248,113,113,0.12);
+  color: #f87171;
+}
+
+.system-pill.paused .dot {
+  background: #f87171;
 }
 
 .hero-sub {
@@ -235,6 +392,14 @@ h2 {
   flex-wrap: wrap;
   gap: 12px;
 }
+
+.hero-actions .link {
+  white-space: nowrap;
+}
+.hero-actions {
+  margin-left: 2px; /* micro optical alignment */
+}
+
 
 /* ======================================================
    HERO ANIMATION (SUBTLE)
@@ -608,7 +773,11 @@ canvas {
 }
 
 .overview-widget {
-  background: rgba(255, 255, 255, 0.04);
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.06),
+    rgba(255,255,255,0.02)
+  );
   border-radius: 12px;
   padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.06);

@@ -19,16 +19,12 @@ let currentVisualPPM = null;
 let analysisRunning = true;
 
 let pollingDelay = 1000;
-// let historyOffset = 0;
-// let autoScroll = true;
-// let fullHistory = [];
 
 const MAX_POINTS = 25;
 
 /* =====================================================
    DOM REFERENCES
 ===================================================== */
-// const historyScroll = document.getElementById("history-scroll");
 
 const valueEl = document.getElementById("value");
 const trendEl = document.getElementById("trend");
@@ -56,17 +52,6 @@ function easeOutCubic(t) {
 function forceLayout(el) {
   el.getBoundingClientRect();
 }
-
-/* =====================================================
-   HISTORY SCROLL
-===================================================== */
-// if (historyScroll) {
-//   historyScroll.addEventListener("input", () => {
-//     historyOffset = Number(historyScroll.value);
-//     autoScroll = historyOffset >= fullHistory.length - MAX_POINTS;
-//     updateChartWindow();
-//   });
-// }
 
 /* =====================================================
    NAVBAR
@@ -205,7 +190,6 @@ async function loadSharedSettings() {
 async function initLivePage() {
   analysisRunning = true;
   createChart();
-  //   loadInitialHistory();
   loadLiveSettings();
   poll();
   startPolling();
@@ -377,19 +361,6 @@ const zoneBackgroundPlugin = {
 Chart.register(zoneBackgroundPlugin);
 
 /* =====================================================
-   HISTORY
-===================================================== */
-// async function loadInitialHistory() {
-//   const res = await fetch("/api/history/latest/1000");
-//   const data = await res.json();
-
-//   fullHistory = data.map((d) => ({
-//     ppm: d.ppm,
-//     timestamp: d.timestamp,
-//   }));
-//}
-
-/* =====================================================
    CHART
 ===================================================== */
 function createChart() {
@@ -469,39 +440,6 @@ function createChart() {
     },
   });
 }
-
-/* =====================================================
-   CHART WINDOW
-===================================================== */
-// function updateChartWindow(animated = false) {
-//   if (!chart) return;
-
-//   const maxOffset = Math.max(0, fullHistory.length - MAX_POINTS);
-
-//   if (autoScroll) {
-//     historyOffset = maxOffset;
-//   }
-
-//   historyOffset = Math.max(0, Math.min(historyOffset, maxOffset));
-
-//   const slice = fullHistory.slice(historyOffset, historyOffset + MAX_POINTS);
-
-// 🔥 IMPORTANT: mutate arrays instead of replacing references
-//   chart.data.labels.length = 0;
-//   chart.data.datasets[0].data.length = 0;
-
-//   slice.forEach((d) => {
-//     chart.data.labels.push(new Date(d.timestamp).toLocaleTimeString());
-//     chart.data.datasets[0].data.push(d.ppm);
-//   });
-
-//   chart.update(animated ? undefined : "none");
-
-//   if (historyScroll) {
-//     historyScroll.max = maxOffset;
-//     historyScroll.value = historyOffset;
-//   }
-// }
 
 /* =====================================================
    UI ANIMATIONS

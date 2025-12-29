@@ -1,5 +1,4 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "base.html" %} {% block content %}
 
 <!-- ================= HERO ================= -->
 <section class="hero">
@@ -9,10 +8,15 @@
       Surveillance intelligente de la qualité de l’air en temps réel
     </p>
 
+    <div class="system-pill paused">
+      <span class="dot"></span>
+      Analyse en pause
+    </div>
+
     <div class="hero-actions">
       <a href="/live" class="link primary">📊 Voir le live</a>
-      <button id="export-day-csv" class="link">📥 Export CSV</button>
-      <button id="export-day-pdf" class="link">📄 Export PDF</button>
+      <button id="export-day-csv" class="link">📥 Données en CSV</button>
+      <button id="export-day-pdf" class="link">📄 Rapport PDF</button>
     </div>
   </div>
 </section>
@@ -22,7 +26,7 @@
   <h2>Aujourd’hui en chiffres</h2>
 
   <div class="overview-grid">
-    <div class="overview-widget">
+    <div class="overview-widget highlight">
       <span class="label">Moyenne CO₂</span>
       <span class="value" id="avg-ppm">—</span>
     </div>
@@ -48,9 +52,7 @@
     <div class="system-status-main">
       <div class="card air-health">
         <div class="air-status" id="air-status">—</div>
-        <div class="air-sub" id="air-sub">
-          CO₂ actuel · — ppm
-        </div>
+        <div class="air-sub" id="air-sub">CO₂ actuel · — ppm</div>
       </div>
 
       <div class="overview-grid">
@@ -95,8 +97,9 @@
 <section class="card">
   <h2>À propos</h2>
   <p class="hint">
-    Aerium est un projet démontrant la surveillance intelligente de la qualité de l’air
-    via capteur CO₂, avec indicateurs visuels, seuils personnalisables et export de données.
+    Aerium est un projet démontrant la surveillance intelligente de la qualité
+    de l’air via capteur CO₂, avec indicateurs visuels, seuils personnalisables
+    et export de données.
   </p>
 </section>
 {% endblock %}
