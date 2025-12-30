@@ -15,9 +15,9 @@
     </div>
 
     <div class="analytics-period">
-      <label>Période</label>
+      <label for="aerium-range" style="margin-right: 8px;">Période</label>
       <select id="aerium-range">
-        <option value="today">Aujourd’hui</option>
+        <option value="today">Aujourd'hui</option>
         <option value="7d">7 jours</option>
         <option value="30d">30 jours</option>
       </select>
@@ -26,33 +26,40 @@
 
   <div id="csv-upload" class="csv-drop hidden">
     <input type="file" id="csv-file" accept=".csv" />
-    <p>Analyse temporaire — non sauvegardée</p>
+    <p style="cursor: pointer; margin: 0;">Glissez un CSV ou cliquez pour importer</p>
+    <p style="font-size: 0.75rem; color: var(--muted); margin-top: 4px;">Analyse temporaire — non sauvegardée</p>
   </div>
 </section>
 
 <!-- METRICS -->
-<section class="card analytics-metrics">
-  <div class="metric">
-    <span class="label">Moyenne</span>
-    <span class="value" id="m-avg">—</span>
-  </div>
-  <div class="metric">
-    <span class="label">Minimum</span>
-    <span class="value" id="m-min">—</span>
-  </div>
-  <div class="metric">
-    <span class="label">Maximum</span>
-    <span class="value" id="m-max">—</span>
-  </div>
-  <div class="metric">
-    <span class="label">Temps air dégradé</span>
-    <span class="value" id="m-bad">—</span>
+<section class="card">
+  <h2>Métriques</h2>
+  <div class="analytics-metrics">
+    <div class="metric">
+      <span class="label">Moyenne</span>
+      <span class="value" id="m-avg">—</span>
+    </div>
+    <div class="metric">
+      <span class="label">Minimum</span>
+      <span class="value" id="m-min">—</span>
+    </div>
+    <div class="metric">
+      <span class="label">Maximum</span>
+      <span class="value" id="m-max">—</span>
+    </div>
+    <div class="metric">
+      <span class="label">Temps air dégradé</span>
+      <span class="value" id="m-bad">—</span>
+    </div>
   </div>
 </section>
 
 <!-- CHART -->
 <section class="card">
-  <canvas id="analytics-chart"></canvas>
+  <h2>Graphique</h2>
+  <div class="chart-wrapper">
+    <canvas id="analytics-chart"></canvas>
+  </div>
 </section>
 
 {% endblock %} {% block scripts %}

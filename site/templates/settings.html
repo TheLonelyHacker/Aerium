@@ -13,7 +13,7 @@
     </label>
   </div>
 
-  <p id="status-text" class="status-text"></p>
+  <p id="status-text" class="status-text" style="margin-top: 12px; color: var(--muted); font-size: 0.9rem;"></p>
 </section>
 
 <section class="card">
@@ -58,6 +58,7 @@
   </div>
 
   <div class="threshold-visual">
+    <p style="font-size: 0.8rem; color: var(--muted); margin-bottom: 10px;">Répartition des zones</p>
     <div class="threshold-bar">
       <div id="good-segment" class="threshold-segment good-seg">Bon</div>
       <div id="medium-segment" class="threshold-segment medium-seg">Moyen</div>
@@ -110,11 +111,7 @@
 <div class="action-buttons">
   <button id="save-settings" class="btn-save">💾 Enregistrer</button>
   <button id="reset-settings" class="btn-reset">⟲ Réinitialiser</button>
-  <a href="/live" class="link">← Retour au tableau de bord</a>
+  <a href="/live" class="link" style="text-align: center;">← Retour au tableau de bord</a>
 </div>
 
-{% endblock %}
-
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
 {% endblock %}

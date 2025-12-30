@@ -1,7 +1,7 @@
 {% extends "base.html" %} {% block content %}
 
 <section class="card">
-  <h2>Niveau de CO2</h2>
+  <h2>Niveau de CO₂</h2>
   <div class="value-wrapper">
     <span id="value" class="value">---</span>
     <svg id="trend" viewBox="0 0 24 24" aria-hidden="true">
@@ -11,11 +11,10 @@
 
   <div id="quality" class="quality">---</div>
 
-  <div style="margin-top: 20px">
+  <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
     <button
       id="export"
       class="link btn-export"
-      style="display: inline-block; margin-right: 15px"
     >
       📥 Exporter CSV
     </button>
@@ -43,25 +42,27 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
     "
   >
     <h2 style="margin: 0">Historique</h2>
-    <div>
-      <button
-        id="reset-btn"
-        style="
-          padding: 4px 10px;
-          margin-left: 5px;
-          background: rgba(255, 255, 255, 0.1);
-          border: none;
-          border-radius: 4px;
-          color: #9ca3af;
-          cursor: pointer;
-        "
-      >
-        ⟲
-      </button>
-    </div>
+    <button
+      id="reset-btn"
+      style="
+        padding: 8px 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
+        color: #9ca3af;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+      "
+      title="Réinitialiser le graphique"
+    >
+      ⟲ Réinitialiser
+    </button>
   </div>
   <div class="chart-wrapper">
     <canvas id="chart"></canvas>
@@ -75,12 +76,16 @@
     style="
       display: flex;
       justify-content: space-between;
+      align-items: center;
       margin-top: 10px;
       font-size: 0.85rem;
       color: #9ca3af;
+      flex-wrap: wrap;
+      gap: 8px;
     "
   >
     <span id="time-range">Simulation en direct</span>
+    <span id="data-points">Points: 0</span>
   </div>
 </section>
 
