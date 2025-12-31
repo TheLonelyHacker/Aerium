@@ -1,3 +1,4 @@
+from kivy.app import App
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.appbar import MDTopAppBar, MDTopAppBarTitle
@@ -7,7 +8,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.pickers import MDTimePickerDialVertical
 from alarmcard import AlarmCard
-
+from select_days import DaysDialog
 
 class MainApp(MDApp):
 
@@ -73,16 +74,28 @@ class MainApp(MDApp):
         
     def on_ok(self, timepicker):
         time = f"{timepicker.hour.zfill(2)}:{timepicker.minute.zfill(2)}"
-        self.add_alarm(time)
+        timepicker.dismiss()
+        self.show_days_dialog(time)
         
+    def on_cancel(self, timepicker):   
+        timepicker.dismiss()
         
+    def show_days_dialog(self, time):
+        dialog = DaysDialog()
+        dialog.open()
+        dialog.bind(on_dismiss=lambda instance: self.on_dialog_dismiss(instance, time))
         
-    def add_alarm(self, time):
+    def on_dialog_dismiss(self, dialog, time):
+        if dialog.state == False:
+            selected_days = ", ".join([i[:3] for i in dialog.selected_days]) if dialog.selected_days else "Tout les jours"
+            self.add_alarm(time, selected_days)
+            
+    def add_alarm(self, time,selected_days=None):
         # supprime le label si première alarme
         if self.label.parent:
             self.label.parent.remove_widget(self.label)
             
-        card = AlarmCard(time, "Nouvelle alarme")
+        card = AlarmCard(time, selected_days)
         self.alarms_layout.add_widget(card)
 
 
