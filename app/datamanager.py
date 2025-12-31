@@ -11,7 +11,6 @@ class DataManager:
     
     
     def write(self,data):
-        
         try:    
             with open(self.path,'w') as f:
                 json.dump(data,f, indent=4)

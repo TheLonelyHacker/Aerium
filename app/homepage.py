@@ -1,4 +1,5 @@
-from kivy.app import App
+import uuid
+
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.appbar import MDTopAppBar, MDTopAppBarTitle
@@ -7,8 +8,11 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.pickers import MDTimePickerDialVertical
+
 from alarmcard import AlarmCard
 from select_days import DaysDialog
+from datamanager import DataManager
+
 
 class MainApp(MDApp):
 
@@ -16,33 +20,32 @@ class MainApp(MDApp):
         self.theme_cls.theme_style = "Dark"
         self.theme_cls.primary_palette = "Blue"
 
-        screen = MDScreen()
+        self.dataManager = DataManager(self.user_data_dir)
+        self.total_alarms = {}
 
-        #topbar
+        screen = MDScreen()
+        
+        #* topBar
         topbar = MDTopAppBar(
             MDTopAppBarTitle(text="Aerium", halign="center"),
             type="large",
             pos_hint={"top": 1},
         )
         screen.add_widget(topbar)
-
-        #Layout principal vertical
-        main_layout = MDBoxLayout(
+        #* layout principal
+        self.main_layout = MDBoxLayout(
             orientation="vertical",
-            padding=("20dp", "160dp", "20dp", "22p"),
+            padding=("20dp", "160dp", "20dp", "22dp"),
             spacing="20dp",
         )
-
-
-        #Label de base
+        #* label par defaut quand il n'y a pas d'alarme
         self.label = MDLabel(
             text="Ajoutez une alarme !",
             halign="center",
             font_style="Headline",
         )
-        main_layout.add_widget(self.label)
-
-        #layout d'alarmes avec scroll
+        self.main_layout.add_widget(self.label)
+        #* scrollview pour les alarmes
         scroll = MDScrollView(size_hint=(1, 1))
 
         self.alarms_layout = MDBoxLayout(
@@ -50,14 +53,15 @@ class MainApp(MDApp):
             spacing="15dp",
             size_hint_y=None,
         )
-        self.alarms_layout.bind(minimum_height=self.alarms_layout.setter("height"))
+        self.alarms_layout.bind(
+            minimum_height=self.alarms_layout.setter("height")
+        )
 
         scroll.add_widget(self.alarms_layout)
-
-        main_layout.add_widget(scroll)
-        screen.add_widget(main_layout)
-
-        #FAB
+        self.main_layout.add_widget(scroll)
+        screen.add_widget(self.main_layout)
+        
+        #* FAB
         fab = MDFabButton(
             icon="plus",
             pos_hint={"right": 0.95, "y": 0.04},
@@ -66,37 +70,77 @@ class MainApp(MDApp):
         screen.add_widget(fab)
 
         return screen
-    
+    #* Des le lancement de l'application, charge toute les alarmes sauvegardees
+    def on_start(self):
+        self.total_alarms = self.dataManager.read()
+        self.alarm_from_data()
+    #* ajoute les alarmes enregistrees en json a l'interfaces 
+    def alarm_from_data(self):
+        for data in self.total_alarms.values():
+            hour_min = data["hour_min"]
+            days_list = data["selected_days"]
+
+            selected_days = (
+                ", ".join(day[:3] for day in days_list)
+                if days_list else "Tous les jours"
+            )
+
+            self.add_alarm(hour_min, selected_days)
+            
+    #* lance le time picker
     def show_time_picker(self, *args):
-        time_picker = MDTimePickerDialVertical()
-        time_picker.bind(on_ok=self.on_ok)
-        time_picker.open()
-        
-    def on_ok(self, timepicker):
-        time = f"{timepicker.hour.zfill(2)}:{timepicker.minute.zfill(2)}"
-        timepicker.dismiss()
+        picker = MDTimePickerDialVertical()
+        picker.bind(on_ok=self.on_ok, on_cancel=self.on_cancel)
+        picker.open()
+
+    def on_ok(self, picker):
+        time = f"{picker.hour.zfill(2)}:{picker.minute.zfill(2)}"
+        picker.dismiss()
         self.show_days_dialog(time)
+
+    def on_cancel(self, picker):
+        picker.dismiss()
         
-    def on_cancel(self, timepicker):   
-        timepicker.dismiss()
-        
+    #* gere l'ouverture de la popup selection des jours
     def show_days_dialog(self, time):
         dialog = DaysDialog()
+        dialog.bind(
+            on_dismiss=lambda instance: self.on_dialog_dismiss(instance, time)
+        )
         dialog.open()
-        dialog.bind(on_dismiss=lambda instance: self.on_dialog_dismiss(instance, time))
         
+    #* gere la fermeture de la popup selection des jourse des jours
     def on_dialog_dismiss(self, dialog, time):
-        if dialog.state == False:
-            selected_days = ", ".join([i[:3] for i in dialog.selected_days]) if dialog.selected_days else "Tout les jours"
+        if dialog.state is False:
+            alarm_data = {
+                "hour_min": time,
+                "selected_days": dialog.selected_days
+            }
+
+            all_data = self.dataManager.read()
+            #* genere un id unique pour chaque alarme
+            alarm_id = str(uuid.uuid4())
+            all_data[alarm_id] = alarm_data
+
+            self.dataManager.write(all_data)
+            self.total_alarms = all_data
+            #* formate les jours selectionnes pour l'affichage "Lun, Mar, Mer"
+            selected_days = (
+                ", ".join(day[:3] for day in dialog.selected_days)
+                if dialog.selected_days else "Tous les jours"
+            )
+
             self.add_alarm(time, selected_days)
             
-    def add_alarm(self, time,selected_days=None):
-        # supprime le label si première alarme
+    #* ajoute une alarme a l'interface
+    def add_alarm(self, time, selected_days):
+        #* Supprime le texte si c'est la premiere alarme
         if self.label.parent:
             self.label.parent.remove_widget(self.label)
-            
+
         card = AlarmCard(time, selected_days)
         self.alarms_layout.add_widget(card)
 
 
-MainApp().run()
+if __name__ == "__main__":
+    MainApp().run()
