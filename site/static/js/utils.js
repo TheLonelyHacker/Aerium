@@ -36,12 +36,20 @@ let prevBadThreshold = badThreshold;
 
 let analysisRunning = true;
 let bgFade = 1;
+let sharedSettings = null; // Cached settings from WebSocket (populated by websocket.js)
 
 /*
 ================================================================================
                     UTILITY FUNCTIONS
 ================================================================================
 */
+
+/**
+ * Get cached settings from WebSocket (returns null if not cached yet)
+ */
+function getCachedSettings() {
+  return sharedSettings;
+}
 
 /* ─────────────────────────────────────────────────────────────────────────── 
    Animation Easing
@@ -115,8 +123,19 @@ function qualityText(ppm) {
    System State API
 ──────────────────────────────────────────────────────────────────────────── */
 async function loadSystemState() {
-  const res = await fetch("/api/settings");
-  return await res.json();
+  // Try to get cached settings from WebSocket first
+  let s = getCachedSettings();
+  
+  // If not cached, use global thresholds (already set by loadSharedSettings())
+  if (!s) {
+    s = {
+      analysis_running: analysisRunning,
+      good_threshold: goodThreshold,
+      bad_threshold: badThreshold
+    };
+  }
+  
+  return s;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── 
@@ -124,12 +143,28 @@ async function loadSystemState() {
 ──────────────────────────────────────────────────────────────────────────── */
 async function loadSharedSettings() {
   try {
-    const res = await fetch("/api/settings");
-    const s = await res.json();
+    // Try to get cached settings from WebSocket first
+    let s = getCachedSettings();
+    
+    // Fallback to HTTP if not cached
+    if (!s) {
+      const res = await fetch("/api/settings");
+      s = await res.json();
+      // Store in cache so other modules can use it
+      sharedSettings = s;
+    }
 
-    goodThreshold = s.good_threshold;
-    badThreshold = s.bad_threshold;
-    mediumThreshold = badThreshold;
+    // Update global state
+    if (s.good_threshold !== undefined) {
+      goodThreshold = s.good_threshold;
+    }
+    if (s.bad_threshold !== undefined) {
+      badThreshold = s.bad_threshold;
+      mediumThreshold = badThreshold;
+    }
+    if (s.analysis_running !== undefined) {
+      analysisRunning = s.analysis_running;
+    }
   } catch {
     console.warn("Failed to load shared settings");
   }

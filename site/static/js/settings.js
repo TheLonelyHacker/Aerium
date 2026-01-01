@@ -15,6 +15,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const realisticMode = document.getElementById("realistic-mode");
   const updateSpeed = document.getElementById("update-speed");
   const speedValue = document.getElementById("speed-value");
+  const overviewUpdateSpeed = document.getElementById("overview-update-speed");
+  const overviewSpeedValue = document.getElementById("overview-speed-value");
 
   const saveBtn = document.getElementById("save-settings");
   const resetBtn = document.getElementById("reset-settings");
@@ -31,7 +33,8 @@ document.addEventListener("DOMContentLoaded", () => {
     good_threshold: 800,
     bad_threshold: 1200,
     realistic_mode: true,
-    update_speed: 2,
+    update_speed: 1,
+    overview_update_speed: 5,
   };
 
   function updateLiveValues() {
@@ -93,6 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
     goodValue.textContent = `${goodSlider.value} ppm`;
     badValue.textContent = `${badSlider.value} ppm`;
     speedValue.textContent = `${updateSpeed.value} secondes`;
+    overviewSpeedValue.textContent = `${overviewUpdateSpeed.value} secondes`;
 
     goodLabel.textContent = goodSlider.value;
     badLabel.textContent = badSlider.value;
@@ -174,6 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
   ========================= */
   async function loadSettings() {
     try {
+      // Always fetch from server to ensure we have latest settings
       const res = await fetch("/api/settings");
       const s = await res.json();
 
@@ -190,12 +195,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       realisticMode.checked = s.realistic_mode;
       updateSpeed.value = s.update_speed;
+      overviewUpdateSpeed.value = s.overview_update_speed || DEFAULTS.overview_update_speed;
     } catch {
+      // Fallback to defaults on error
       toggle.checked = DEFAULTS.analysis_running;
       goodSlider.value = DEFAULTS.good_threshold;
       badSlider.value = DEFAULTS.bad_threshold;
       realisticMode.checked = DEFAULTS.realistic_mode;
       updateSpeed.value = DEFAULTS.update_speed;
+      overviewUpdateSpeed.value = DEFAULTS.overview_update_speed;
     }
 
     syncThresholds();
@@ -212,17 +220,25 @@ document.addEventListener("DOMContentLoaded", () => {
     saveBtn.classList.add("btn-saved");
     saveBtn.textContent = "✓ Enregistré";
 
-    await fetch("/api/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        analysis_running: toggle.checked,
-        good_threshold: +goodSlider.value,
-        bad_threshold: +badSlider.value,
-        realistic_mode: realisticMode.checked,
-        update_speed: +updateSpeed.value,
-      }),
-    });
+    const settingsData = {
+      analysis_running: toggle.checked,
+      good_threshold: +goodSlider.value,
+      bad_threshold: +badSlider.value,
+      realistic_mode: realisticMode.checked,
+      update_speed: +updateSpeed.value,
+      overview_update_speed: +overviewUpdateSpeed.value,
+    };
+
+    // Use WebSocket if available, fallback to HTTP
+    if (isWSConnected() && socket) {
+      socket.emit('settings_change', settingsData);
+    } else {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settingsData),
+      });
+    }
 
     setTimeout(() => {
       saveBtn.textContent = "💾 Enregistrer";
@@ -253,9 +269,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
       syncThresholds(e.target);
       updateVisualization();
-      updateLiveValues(); // 🔥 NEW
+      updateLiveValues();
     })
   );
+
+  // Update live speed display when slider changes
+  updateSpeed.addEventListener("input", () => {
+    updateTexts();
+  });
+
+  // Update overview speed display when slider changes and trigger handler to restart interval
+  overviewUpdateSpeed.addEventListener("input", () => {
+    updateTexts();
+    // Immediately apply the new interval to the overview page
+    if (window.handleOverviewSettings) {
+      window.handleOverviewSettings({
+        overview_update_speed: +overviewUpdateSpeed.value
+      });
+    }
+  });
 
   loadSettings();
 
@@ -272,4 +304,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
   goodSlider.addEventListener("change", () => snapOne(goodSlider));
   badSlider.addEventListener("change", () => snapOne(badSlider));
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // WebSocket Settings Update Handler
+  // ─────────────────────────────────────────────────────────────────────────
+  window.handleSettingsUpdate = function(settings) {
+    // Update UI when settings change from another source (e.g., reset button, another tab)
+    if (settings.analysis_running !== undefined) {
+      toggle.checked = settings.analysis_running;
+    }
+    if (settings.good_threshold !== undefined) {
+      goodSlider.value = Math.min(Math.max(settings.good_threshold, MIN), MAX);
+    }
+    if (settings.bad_threshold !== undefined) {
+      badSlider.value = Math.min(Math.max(settings.bad_threshold, MIN), MAX);
+    }
+    if (settings.realistic_mode !== undefined) {
+      realisticMode.checked = settings.realistic_mode;
+    }
+    if (settings.update_speed !== undefined) {
+      updateSpeed.value = settings.update_speed;
+    }
+    if (settings.overview_update_speed !== undefined) {
+      overviewUpdateSpeed.value = settings.overview_update_speed;
+    }
+    
+    syncThresholds();
+    updateTexts();
+    updateVisualization();
+  };
 });

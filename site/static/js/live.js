@@ -8,11 +8,13 @@ Real-time CO₂ monitoring: chart, animations, polling, live data updates.
 
 let chart;
 let lastPPM = null;
+let lastCo2Timestamp = null; // used to dedupe rapid duplicate updates
 let lastQualityPPM = null;
 let lastRotation = 0;
 let pollingDelay = POLLING_INTERVAL;
 let pollInterval = null;
 let analysisRunningLocal = true;
+let useWebSocket = true; // Use WebSocket by default
 
 const valueEl = document.getElementById("value");
 const trendEl = document.getElementById("trend");
@@ -160,10 +162,13 @@ function createChart() {
 /* ─────────────────────────────────────────────────────────────────────────── 
    Chart Updates
 ──────────────────────────────────────────────────────────────────────────── */
-function updateChart(ppm) {
+function updateChart(ppm, timestamp) {
   if (!chart) return;
 
-  const timeLabel = new Date(Date.now()).toLocaleTimeString();
+  // Prefer server-provided timestamp for consistent labels across views
+  const timeLabel = timestamp
+    ? new Date(timestamp).toLocaleTimeString()
+    : new Date(Date.now()).toLocaleTimeString();
 
   chart.data.labels.push(timeLabel);
   chart.data.datasets[0].data.push(ppm);
@@ -270,8 +275,13 @@ function animateQuality(ppm) {
 */
 
 async function loadLiveSettings() {
-  const res = await fetch("/api/settings");
-  const s = await res.json();
+  // Use cached settings (already loaded by loadSharedSettings() in main.js)
+  let s = getCachedSettings();
+  
+  // If still not cached (shouldn't happen), use global thresholds already set by loadSharedSettings()
+  if (!s) {
+    return; // Use already-set global thresholds
+  }
 
   prevGoodThreshold = goodThreshold;
   prevBadThreshold = badThreshold;
@@ -297,8 +307,16 @@ async function loadLiveSettings() {
 }
 
 function startPolling() {
+  // Use WebSocket for live updates (no polling needed)
+  if (useWebSocket && isWSConnected()) {
+    console.log("✓ Using WebSocket for live updates");
+    return;
+  }
+  
+  // Fallback to polling if WebSocket not available
   if (!analysisRunningLocal) return;
   stopPolling();
+  console.log("⚠ Falling back to polling (WebSocket not available)");
   pollInterval = setInterval(poll, pollingDelay);
 }
 
@@ -311,8 +329,74 @@ function stopPolling() {
 
 function updatePollingSpeed(seconds) {
   pollingDelay = seconds * 1000;
-  startPolling();
+  // Only restart polling if not using WebSocket
+  if (!useWebSocket || !isWSConnected()) {
+    startPolling();
+  }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// WebSocket Handler for CO₂ Updates
+// ─────────────────────────────────────────────────────────────────────────
+
+window.handleCO2Update = function(data) {
+  if (!isLivePage) return;
+
+  // Deduplicate updates coming from both request-response and broadcast
+  try {
+    if (data && data.timestamp) {
+      if (data.timestamp === lastCo2Timestamp) return;
+      lastCo2Timestamp = data.timestamp;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  /* ⏸ PAUSE HANDLING */
+  if (data.analysis_running === false) {
+    analysisRunningLocal = false;
+    updateNavAnalysisState(false);
+    hidePausedOverlay();
+    showPausedOverlay();
+    stopPolling();
+    return;
+  }
+
+  /* ▶️ RESUME HANDLING */
+  if (!analysisRunningLocal && data.analysis_running === true) {
+    analysisRunningLocal = true;
+    updateNavAnalysisState(true);
+    hidePausedOverlay();
+    startPolling();
+  }
+
+  if (!analysisRunningLocal) return;
+
+  hidePausedOverlay();
+
+  if (!data || data.ppm == null) return;
+
+  const ppm = data.ppm;
+  console.log("📊 New PPM (WebSocket):", ppm);
+
+  updateTrend(lastPPM, ppm);
+  animateValue(ppm);
+  animateQuality(ppm);
+  updateChart(ppm, data.timestamp);
+};
+
+window.handleSettingsUpdate = function(settings) {
+  goodThreshold = settings.good_threshold || goodThreshold;
+  badThreshold = settings.bad_threshold || badThreshold;
+  
+  // Update polling speed if changed
+  if (settings.update_speed && settings.update_speed !== pollingDelay / 1000) {
+    updatePollingSpeed(settings.update_speed);
+  }
+  
+  chart.update("none");
+};
+
 
 /*
 ================================================================================
@@ -351,10 +435,18 @@ async function poll() {
   console.log("New PPM", ppm);
 
   if (isLivePage) {
+    // Dedupe by timestamp to avoid duplicate inserts when both poll and WS send
+    try {
+      if (data.timestamp) {
+        if (data.timestamp === lastCo2Timestamp) return;
+        lastCo2Timestamp = data.timestamp;
+      }
+    } catch (e) {}
+
     updateTrend(lastPPM, ppm);
     animateValue(ppm);
     animateQuality(ppm);
-    updateChart(ppm);
+    updateChart(ppm, data.timestamp);
   }
 }
 
@@ -370,8 +462,20 @@ function initLivePage() {
   analysisRunningLocal = true;
   createChart();
   loadLiveSettings();
-  poll();
-  startPolling();
+  
+  // Use WebSocket for live updates
+  if (useWebSocket && socket) {
+    console.log("✓ Initializing WebSocket live updates");
+    // Initial data fetch
+    if (isWSConnected()) {
+      socket.emit('request_data');
+    }
+  } else {
+    // Fallback to polling
+    console.log("⚠ Initializing polling fallback");
+    poll();
+    startPolling();
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── 

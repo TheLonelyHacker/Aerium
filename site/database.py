@@ -21,6 +21,18 @@ def init_db():
             ppm INTEGER NOT NULL
         )
     """)
+    
+    # Create index on timestamp for faster queries
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_co2_timestamp 
+        ON co2_readings(timestamp DESC)
+    """)
+    
+    # Create index on date for daily queries
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_co2_date 
+        ON co2_readings(date(timestamp))
+    """)
 
     # Settings persistence
     cur.execute("""
@@ -32,3 +44,19 @@ def init_db():
 
     db.commit()
     db.close()
+
+def cleanup_old_data(days_to_keep=90):
+    """Remove CO₂ readings older than specified days (default 90 days)"""
+    db = get_db()
+    cur = db.cursor()
+    
+    cur.execute("""
+        DELETE FROM co2_readings 
+        WHERE timestamp < datetime('now', '-' || ? || ' days')
+    """, (days_to_keep,))
+    
+    deleted_count = cur.rowcount
+    db.commit()
+    db.close()
+    
+    return deleted_count

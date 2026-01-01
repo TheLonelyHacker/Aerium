@@ -8,6 +8,8 @@ Homepage: air health status, daily statistics, CO₂ thermometer.
 
 const isOverviewPage = !!document.querySelector(".air-health");
 let lastSubPPM = null;
+let overviewUpdateInterval = null;
+let overviewUpdateSpeed = 5; // Default 5 seconds
 
 /*
 ================================================================================
@@ -130,7 +132,18 @@ async function loadOverviewStats() {
   if (!airCard || !statusEl) return;
 
   try {
-    const settings = await loadSystemState();
+    // Use cached settings from WebSocket or global state
+    let settings = getCachedSettings();
+    if (!settings) {
+      // Use global state already loaded by loadSharedSettings()
+      // No HTTP fallback here to avoid unnecessary requests
+      settings = {
+        analysis_running: analysisRunning || true,
+        good_threshold: goodThreshold,
+        bad_threshold: badThreshold
+      };
+    }
+    
     updateNavAnalysisState(settings.analysis_running);
 
     /* ⏸ ANALYSIS PAUSED */
@@ -200,10 +213,50 @@ async function loadOverviewStats() {
 ================================================================================
 */
 
+function startOverviewRefresh() {
+  if (overviewUpdateInterval) clearInterval(overviewUpdateInterval);
+  loadOverviewStats();
+  overviewUpdateInterval = setInterval(loadOverviewStats, overviewUpdateSpeed * 1000);
+}
+
+function stopOverviewRefresh() {
+  if (overviewUpdateInterval) {
+    clearInterval(overviewUpdateInterval);
+    overviewUpdateInterval = null;
+  }
+}
+
+// WebSocket handler for settings changes
+window.handleOverviewSettings = function(settings) {
+  if (settings.overview_update_speed !== undefined) {
+    overviewUpdateSpeed = settings.overview_update_speed;
+  }
+  if (isOverviewPage) {
+    startOverviewRefresh(); // Restart with new interval
+  }
+};
+
+// WebSocket handler for CO₂ updates - DISABLED on overview page
+// Overview uses a fixed interval timer (startOverviewRefresh) to avoid duplicate updates
+window.handleOverviewCO2Update = function(data) {
+  if (!isOverviewPage) return;
+  // No-op: let the timer-based interval control updates
+};
+
 if (isOverviewPage) {
-  document.addEventListener("DOMContentLoaded", () => {
-    loadOverviewStats();
-    setInterval(loadOverviewStats, OVERVIEW_REFRESH_INTERVAL);
+  document.addEventListener("DOMContentLoaded", async () => {
+    // Load settings from server to get correct overview_update_speed
+    try {
+      const res = await fetch("/api/settings");
+      const settings = await res.json();
+      if (settings.overview_update_speed !== undefined) {
+        overviewUpdateSpeed = settings.overview_update_speed;
+      }
+    } catch (e) {
+      console.warn("Could not load settings, using default interval", e);
+    }
+    
+    startOverviewRefresh();
   });
 }
 

@@ -18,6 +18,7 @@ Module loading order (see base.html):
 document.addEventListener("DOMContentLoaded", () => {
   initNavbar();
   initGlobalState();
+  initWebSocket(); // Initialize WebSocket connection
 });
 
 // Bootstrap application
@@ -36,9 +37,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize page-specific modules
   if (isLivePage) initLivePage();
   if (isOverviewPage) {
-    loadOverviewStats();
-    setInterval(loadOverviewStats, OVERVIEW_REFRESH_INTERVAL);
+    // Initialize overview update speed from settings
+    const ovSettings = getCachedSettings();
+    if (ovSettings && ovSettings.overview_update_speed) {
+      overviewUpdateSpeed = ovSettings.overview_update_speed;
+    }
+    startOverviewRefresh(); // Use dynamic interval based on settings
   }
 
   console.log("✓ Morpheus app loaded");
+  console.log("🔧 Settings loaded:", getCachedSettings());
 })();
