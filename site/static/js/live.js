@@ -327,6 +327,10 @@ function stopPolling() {
   }
 }
 
+// Expose for websocket.js fallback hooks
+window.startPolling = startPolling;
+window.stopPolling = stopPolling;
+
 function updatePollingSpeed(seconds) {
   pollingDelay = seconds * 1000;
   // Only restart polling if not using WebSocket
@@ -378,6 +382,10 @@ window.handleCO2Update = function(data) {
 
   const ppm = data.ppm;
   console.log("📊 New PPM (WebSocket):", ppm);
+
+  if (window.pushNavPpm) {
+    try { window.pushNavPpm(ppm, data.timestamp); } catch (e) {}
+  }
 
   updateTrend(lastPPM, ppm);
   animateValue(ppm);
@@ -434,6 +442,10 @@ async function poll() {
   const ppm = data.ppm;
   console.log("New PPM", ppm);
 
+  if (window.pushNavPpm) {
+    try { window.pushNavPpm(ppm, data.timestamp); } catch (e) {}
+  }
+
   if (isLivePage) {
     // Dedupe by timestamp to avoid duplicate inserts when both poll and WS send
     try {
@@ -469,6 +481,9 @@ function initLivePage() {
     // Initial data fetch
     if (isWSConnected()) {
       socket.emit('request_data');
+    } else {
+      // Fallback while WebSocket connects
+      startPolling();
     }
   } else {
     // Fallback to polling

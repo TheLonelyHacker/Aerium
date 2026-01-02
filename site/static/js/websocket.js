@@ -135,12 +135,26 @@ function requestLatestData() {
  */
 function updateWSIndicator(connected) {
   const navStatus = document.getElementById('nav-analysis');
+  const transportLabel = document.getElementById('nav-transport-label');
   if (!navStatus) return;
   
   const dot = navStatus.querySelector('.dot');
   if (dot) {
     dot.style.backgroundColor = connected ? '#4ade80' : '#f87171';
     dot.style.animation = connected ? 'pulse 2s infinite' : 'none';
+  }
+
+  if (transportLabel) {
+    transportLabel.textContent = connected ? 'Live via WS' : 'Fallback · Polling';
+    transportLabel.style.color = connected ? '#9ca3af' : '#fbbf24';
+  }
+  
+  // Toggle polling fallback on WS state
+  if (!connected && window.startPolling) {
+    try { window.startPolling(); } catch (e) {}
+  }
+  if (connected && window.stopPolling) {
+    try { window.stopPolling(); } catch (e) {}
   }
 }
 

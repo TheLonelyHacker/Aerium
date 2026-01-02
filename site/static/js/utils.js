@@ -333,15 +333,4 @@ function initNavbar() {
                       INITIALIZATION BOOTSTRAP
 ================================================================================
 */
-
-document.addEventListener("DOMContentLoaded", () => {
-  initNavbar();
-  initGlobalState();
-});
-
-(async () => {
-  await loadSharedSettings();
-  const state = await loadSystemState();
-  updateNavAnalysisState(state.analysis_running);
-  startSystemStateWatcher();
-})();
+// Bootstrapping now lives in main.js to avoid double initialization here.

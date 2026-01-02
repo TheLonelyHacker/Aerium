@@ -128,7 +128,6 @@ h2 {
   background: rgba(11, 13, 18, 0.85);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  height: 58px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── 
@@ -205,8 +204,11 @@ h2 {
    Navbar Right (Status Indicator)
 ──────────────────────────────────────────────────────────────────────────── */
 .nav-right {
-  min-width: 170px;
+  min-width: 210px;
   justify-content: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .nav-status {
@@ -215,6 +217,17 @@ h2 {
   gap: 8px;
   font-weight: 500;
   transition: color 0.25s ease;
+}
+
+.nav-status-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.nav-status .sublabel {
+  font-size: 0.75rem;
+  color: var(--muted);
 }
 
 .nav-status .dot {
@@ -241,6 +254,27 @@ h2 {
 .nav-status.is-paused .dot {
   background: #f87171;
   box-shadow: 0 0 6px rgba(248, 113, 113, 0.6);
+}
+
+.nav-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nav-mini-value {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+#nav-ppm-spark {
+  display: block;
+  height: 28px;
+  width: 120px;
 }
 
 /*

@@ -138,7 +138,7 @@ async function loadOverviewStats() {
       // Use global state already loaded by loadSharedSettings()
       // No HTTP fallback here to avoid unnecessary requests
       settings = {
-        analysis_running: analysisRunning || true,
+        analysis_running: analysisRunning ?? false,
         good_threshold: goodThreshold,
         bad_threshold: badThreshold
       };

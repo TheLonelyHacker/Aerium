@@ -2,7 +2,7 @@ from flask import Flask, jsonify, render_template, request, make_response
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
 import time
-from datetime import datetime, date
+from datetime import datetime, date, UTC
 import os
 from database import get_db, init_db
 import json
@@ -178,7 +178,6 @@ def api_settings():
         socketio.emit('settings_update', DEFAULT_SETTINGS)
         
         return jsonify(DEFAULT_SETTINGS)
-        return jsonify(DEFAULT_SETTINGS)
 
     return jsonify(load_settings())
 
@@ -284,6 +283,45 @@ def export_daily_pdf():
     return generate_pdf(html)
 
 
+@app.route("/healthz")
+def healthz():
+    db = get_db()
+    latest = db.execute("SELECT ppm, timestamp FROM co2_readings ORDER BY id DESC LIMIT 1").fetchone()
+    count = db.execute("SELECT COUNT(*) AS c FROM co2_readings").fetchone()["c"]
+    settings = load_settings()
+    db.close()
+
+    return jsonify({
+        "status": "ok",
+        "analysis_running": settings.get("analysis_running", True),
+        "rows": count,
+        "latest_ppm": latest["ppm"] if latest else None,
+        "latest_timestamp": latest["timestamp"] if latest else None,
+    })
+
+
+@app.route("/metrics")
+def metrics():
+    db = get_db()
+    latest = db.execute("SELECT ppm, timestamp FROM co2_readings ORDER BY id DESC LIMIT 1").fetchone()
+    count = db.execute("SELECT COUNT(*) AS c FROM co2_readings").fetchone()["c"]
+    settings = load_settings()
+    db.close()
+
+    payload = {
+        "rows": count,
+        "analysis_running": settings.get("analysis_running", True),
+        "good_threshold": settings.get("good_threshold"),
+        "bad_threshold": settings.get("bad_threshold"),
+        "update_speed": settings.get("update_speed"),
+        "overview_update_speed": settings.get("overview_update_speed"),
+        "latest_ppm": latest["ppm"] if latest else None,
+        "latest_timestamp": latest["timestamp"] if latest else None,
+    }
+
+    return jsonify(payload)
+
+
 # ================================================================================
 #                          WEBSOCKET HANDLERS
 # ================================================================================
@@ -316,7 +354,7 @@ def handle_request_data():
         emit('co2_update', {
             'analysis_running': False,
             'ppm': None,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(UTC).isoformat()
         })
         return
     
@@ -326,7 +364,7 @@ def handle_request_data():
     emit('co2_update', {
         'analysis_running': True,
         'ppm': ppm,
-        'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(UTC).isoformat()
     })
 
 @socketio.on('settings_change')
@@ -355,7 +393,7 @@ def broadcast_co2_loop():
                 socketio.emit('co2_update', {
                     'analysis_running': True,
                     'ppm': ppm,
-                    'timestamp': datetime.utcnow().isoformat()
+                    'timestamp': datetime.now(UTC).isoformat()
                 }, to=None)
                 last_ppm = ppm
                 last_analysis_state = True
@@ -365,7 +403,7 @@ def broadcast_co2_loop():
                 socketio.emit('co2_update', {
                     'analysis_running': False,
                     'ppm': None,
-                    'timestamp': datetime.utcnow().isoformat()
+                    'timestamp': datetime.now(UTC).isoformat()
                 }, to=None)
                 last_analysis_state = False
         

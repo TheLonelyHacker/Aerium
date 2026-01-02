@@ -36,9 +36,18 @@
         <span class="nav-underline"></span>
       </div>
 
-      <div class="nav-right nav-status" id="nav-analysis">
-        <span class="dot"></span>
-        <span class="label" id="nav-analysis-label">Analyse active</span>
+      <div class="nav-right">
+        <div class="nav-status" id="nav-analysis">
+          <span class="dot"></span>
+          <div class="nav-status-text">
+            <span class="label" id="nav-analysis-label">Analyse active</span>
+            <span class="sublabel" id="nav-transport-label">Live via WS</span>
+          </div>
+        </div>
+        <div class="nav-mini" id="nav-mini">
+          <span class="nav-mini-value" id="nav-ppm-value">— ppm</span>
+          <canvas id="nav-ppm-spark" width="120" height="28" aria-label="Historique CO₂"></canvas>
+        </div>
       </div>
     </nav>
 
