@@ -23,6 +23,10 @@ let recentValues = [];
 let audioEnabled = localStorage.getItem("audioAlerts") !== "false";
 let lastBadAlertTime = 0;
 
+// Track animation state for smooth new point animation
+let pointAnimationProgress = 1;
+let animatingPointIndex = -1;
+
 const valueEl = document.getElementById("value");
 const trendEl = document.getElementById("trend");
 const qualityEl = document.getElementById("quality");
@@ -102,6 +106,66 @@ function showAlertNotification(message, level = "warning") {
 */
 
 /* ─────────────────────────────────────────────────────────────────────────── 
+   Smooth Line & Point Animation Plugin
+──────────────────────────────────────────────────────────────────────────── */
+const smoothLineAnimationPlugin = {
+  id: "smoothLineAnimation",
+  afterDraw(chart) {
+    if (animatingPointIndex < 0) return;
+    
+    const { ctx, data, scales, chartArea } = chart;
+    const dataset = data.datasets[0];
+    const idx = animatingPointIndex;
+    
+    if (idx >= data.labels.length) return;
+    
+    const xScale = scales.x;
+    const yScale = scales.y;
+    
+    const prevValue = idx > 0 ? dataset.data[idx - 1] : dataset.data[idx];
+    const currentValue = dataset.data[idx];
+    
+    // Interpolate value based on animation progress
+    const interpolated = prevValue + (currentValue - prevValue) * pointAnimationProgress;
+    
+    const x = xScale.getPixelForValue(idx);
+    const y = yScale.getPixelForValue(interpolated);
+    
+    // Draw animated line from previous point to current
+    if (idx > 0) {
+      const prevX = xScale.getPixelForValue(idx - 1);
+      const prevY = yScale.getPixelForValue(prevValue);
+      
+      ctx.save();
+      ctx.strokeStyle = "rgba(61, 217, 143, 0.8)";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(prevX, prevY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    
+    // Draw animated point on top
+    ctx.save();
+    ctx.fillStyle = "rgba(61, 217, 143, 1)";
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+if (typeof Chart !== "undefined") {
+  Chart.register(smoothLineAnimationPlugin);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── 
    Chart Background Plugin (Zone Visualization)
 ──────────────────────────────────────────────────────────────────────────── */
 const zoneBackgroundPlugin = {
@@ -162,41 +226,33 @@ function createChart() {
           data: [],
           normalized: true,
           borderWidth: 3,
-          tension: 0.35,
+          tension: 0.4,
           fill: true,
-          backgroundColor: "rgba(11,13,18,0.30)",
-          borderColor: "#9ca3af",
+          backgroundColor: "rgba(61, 217, 143, 0.12)",
+          borderColor: "#a0aab7",
 
           animations: {
-            y: {
-              from: (ctx) => {
-                if (!ctx || ctx.parsed == null) return undefined;
-
-                const data = ctx.chart.data.datasets[0].data;
-                const i = ctx.dataIndex;
-
-                if (i === data.length - 1 && data.length > 1) {
-                  return data[i - 1];
-                }
-
-                return ctx.parsed.y;
-              },
-              duration: 400,
-              easing: "easeOutCubic",
-            },
-
-            fill: {
-              duration: 0,
-            },
+            y: false,
+            fill: false,
           },
 
           segment: {
             borderColor: (ctx) => {
               const v = ctx.p1?.parsed?.y;
+              // Skip rendering the line to the last animated point
+              if (ctx.p1DataIndex === animatingPointIndex) {
+                return undefined; // Don't render this segment
+              }
               return v == null ? "#9ca3af" : ppmColor(v);
             },
           },
-          pointRadius: 4,
+          pointRadius: (ctx) => {
+            // Hide the last point while it's animating - our plugin will draw it
+            if (ctx.dataIndex === animatingPointIndex) {
+              return 0; // Don't show the point from the dataset
+            }
+            return 4;
+          },
           pointHoverRadius: 6,
           pointBorderColor: "#0b0d12",
           pointBackgroundColor: (ctx) => {
@@ -216,13 +272,16 @@ function createChart() {
         y: {
           min: 400,
           max: 2000,
-          animation: false,
+          animation: { duration: 0 },
           grid: { color: "rgba(255,255,255,0.06)" },
         },
         x: {
-          animation: false,
+          animation: { duration: 0 },
           grid: { color: "rgba(255,255,255,0.04)" },
         },
+      },
+      animation: {
+        duration: 0,
       },
     },
   });
@@ -242,12 +301,42 @@ function updateChart(ppm, timestamp) {
   chart.data.labels.push(timeLabel);
   chart.data.datasets[0].data.push(ppm);
 
-  chart.update({ duration: 0 });
+  // Update chart without animation - our custom plugin handles the animation
+  chart.update('none');
+
+  // Start animation for the newest point and line
+  const newPointIndex = chart.data.labels.length - 1;
+  animatingPointIndex = newPointIndex;
+  pointAnimationProgress = 0;
+  
+  const startTime = performance.now();
+  const animationDuration = 500; // ms - smooth drawing duration
+  
+  function animateFrame(now) {
+    const elapsed = now - startTime;
+    pointAnimationProgress = Math.min(elapsed / animationDuration, 1);
+    
+    // Easing function for smooth curve
+    const eased = 1 - Math.pow(1 - pointAnimationProgress, 3); // easeOutCubic
+    pointAnimationProgress = eased;
+    
+    chart.draw();
+    
+    if (pointAnimationProgress < 1) {
+      requestAnimationFrame(animateFrame);
+    } else {
+      animatingPointIndex = -1;
+      pointAnimationProgress = 1;
+      chart.draw();
+    }
+  }
+  
+  requestAnimationFrame(animateFrame);
 
   if (chart.data.labels.length > MAX_POINTS) {
     chart.data.labels.shift();
     chart.data.datasets[0].data.shift();
-    chart.update("none");
+    chart.update('none');
   }
 }
 
