@@ -1,5 +1,7 @@
 from flask import Flask, jsonify, render_template, request, make_response, session, redirect, url_for
 from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import random
 import time
 from datetime import datetime, date, UTC, timedelta
@@ -9,14 +11,25 @@ from database import (get_db, init_db, get_user_by_username, create_user, get_us
                       create_verification_token, verify_email_token, cleanup_expired_tokens,
                       get_user_by_email, create_password_reset_token, verify_reset_token,
                       reset_password, cleanup_expired_reset_tokens, log_login, get_login_history,
-                      is_admin, set_user_role, get_all_users, get_admin_stats)
+                      is_admin, set_user_role, get_all_users, get_admin_stats,
+                      log_audit, get_audit_logs, cleanup_old_audit_logs, cleanup_old_data,
+                      cleanup_old_login_history, delete_user_with_audit, get_database_info,
+                      init_onboarding, get_onboarding_status, update_onboarding_step, 
+                      mark_feature_as_seen, complete_onboarding, start_tour, complete_tour,
+                      create_scheduled_export, get_user_scheduled_exports, get_due_exports,
+                      update_export_timestamp, delete_scheduled_export,
+                      get_user_thresholds, update_user_thresholds, check_threshold_status,
+                      grant_permission, revoke_permission, has_permission, get_user_permissions, get_users_with_permission,
+                      import_csv_readings, get_csv_import_stats)
 import json
 from flask import send_file
 import io
 from weasyprint import HTML
 import threading
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from functools import wraps
+import csv
 import secrets
 
 from fake_co2 import generate_co2, save_reading, reset_state
@@ -25,6 +38,13 @@ from database import cleanup_old_data
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'morpheus-co2-secret-key'
+
+# Initialize rate limiter
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
 
 # Email configuration (using development/testing settings)
 # In production, use environment variables for credentials
@@ -39,11 +59,26 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 init_db()
 
+# ================================================================================
+#                    SECURITY HEADERS & MIDDLEWARE
+# ================================================================================
+
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdn.socket.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;"
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
+
 def send_verification_email(email, username, token):
     """Send email verification link"""
     try:
-        # flask_mail not configured - email verification skipped
-        return True
+        from flask_mail import Mail, Message
+        mail = Mail(app)
         
         verify_url = url_for('verify_email', token=token, _external=True)
         subject = "Verify your Morpheus CO₂ Account"
@@ -85,8 +120,8 @@ def send_verification_email(email, username, token):
 def send_password_reset_email(email, username, token):
     """Send password reset email"""
     try:
-        # flask_mail not configured - reset email skipped
-        return True
+        from flask_mail import Mail, Message
+        mail = Mail(app)
         
         reset_url = url_for('reset_password_page', token=token, _external=True)
         subject = "Reset your Morpheus CO₂ Password"
@@ -127,8 +162,6 @@ def send_password_reset_email(email, username, token):
         return False
 
 def load_settings():
-    """Load settings - always use global settings (per-user settings for API only)"""
-    # Fallback to global settings
     db = get_db()
     rows = db.execute("SELECT key, value FROM settings").fetchall()
     db.close()
@@ -156,6 +189,16 @@ DEFAULT_SETTINGS = {
     "overview_update_speed": 5,
 }
 
+def save_settings(data):
+    db = get_db()
+    for k, v in data.items():
+        db.execute(
+            "REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (k, json.dumps(v))
+        )
+    db.commit()
+    db.close()
+
 # ================================================================================
 #                        AUTHENTICATION DECORATOR
 # ================================================================================
@@ -180,11 +223,27 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def permission_required(permission):
+    """Decorator to check if user has a specific permission"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user_id' not in session:
+                return redirect(url_for('login_page', next=request.url))
+            if not has_permission(session['user_id'], permission):
+                return render_template("error.html",
+                    error="Access Denied",
+                    message=f"You do not have the '{permission}' permission."), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 # ================================================================================
 #                        AUTHENTICATION ROUTES
 # ================================================================================
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute")
 def login_page():
     if request.method == "POST":
         username = request.form.get("username")
@@ -230,6 +289,7 @@ def login_page():
     return render_template("login.html")
 
 @app.route("/forgot-password", methods=["GET", "POST"])
+@limiter.limit("3 per minute")
 def forgot_password_page():
     """Request password reset"""
     if request.method == "POST":
@@ -305,6 +365,7 @@ def reset_password_page(token):
     return render_template("reset_password.html", valid_token=True)
 
 @app.route("/register", methods=["GET", "POST"])
+@limiter.limit("3 per minute")
 def register_page():
     if request.method == "POST":
         username = request.form.get("username")
@@ -316,7 +377,7 @@ def register_page():
         if not all([username, email, password, confirm_password]):
             return render_template("register.html", error="Tous les champs sont requis")
         
-        if username and len(username) < 3:
+        if len(username) < 3:
             return render_template("register.html", error="Le nom d'utilisateur doit contenir au moins 3 caractères")
         
         if len(password) < 6:
@@ -330,7 +391,7 @@ def register_page():
             return render_template("register.html", error="Ce nom d'utilisateur existe déjà")
         
         # Create user
-        password_hash = generate_password_hash(password) if password else None
+        password_hash = generate_password_hash(password)
         user_id = create_user(username, email, password_hash)
         
         if not user_id:
@@ -423,7 +484,7 @@ def change_password():
             error = "Tous les champs sont requis"
         elif not check_password_hash(user['password_hash'], current_password):
             error = "Mot de passe actuel incorrect"
-        elif not (new_password and len(new_password) >= 6):
+        elif len(new_password) < 6:
             error = "Le nouveau mot de passe doit contenir au moins 6 caractères"
         elif new_password != confirm_password:
             error = "Les mots de passe ne correspondent pas"
@@ -433,7 +494,7 @@ def change_password():
         
         # Update password
         db = get_db()
-        new_password_hash = generate_password_hash(new_password) if new_password else None
+        new_password_hash = generate_password_hash(new_password)
         db.execute(
             "UPDATE users SET password_hash = ? WHERE id = ?",
             (new_password_hash, user_id)
@@ -486,14 +547,26 @@ def settings_page():
 def analytics():
     return render_template("analytics.html")
 
+@app.route("/visualization")
+@login_required
+def visualization():
+    """Advanced data visualization dashboard"""
+    return render_template("visualization.html")
+
 @app.route("/admin")
 @admin_required
 def admin_dashboard():
     """Admin dashboard with statistics and user management"""
     stats = get_admin_stats()
     users = get_all_users()
+    audit_logs = get_audit_logs(limit=20)
+    db_info = get_database_info()
     
-    return render_template("admin.html", stats=stats, users=users)
+    return render_template("admin.html", 
+                         stats=stats, 
+                         users=users, 
+                         audit_logs=audit_logs,
+                         db_info=db_info)
 
 @app.route("/admin/user/<int:user_id>/role/<role>", methods=["POST"])
 @admin_required
@@ -507,8 +580,696 @@ def update_user_role(user_id, role):
         return jsonify({'error': 'Cannot remove your own admin privileges'}), 400
     
     if set_user_role(user_id, role):
+        # Log the action
+        admin_id = session.get('user_id')
+        ip_address = request.remote_addr
+        log_audit(admin_id, 'user_role_updated', 'user', user_id, 
+                 'role_changed', f"user → {role}", ip_address)
+        
         return jsonify({'success': True, 'role': role})
     return jsonify({'error': 'Failed to update role'}), 500
+
+@app.route("/api/permissions", methods=["GET"])
+@login_required
+def get_my_permissions():
+    """Get current user's permissions"""
+    user_id = session.get('user_id')
+    permissions = get_user_permissions(user_id)
+    return jsonify({"permissions": permissions})
+
+@app.route("/api/permissions/<int:user_id>", methods=["GET"])
+@admin_required
+def get_user_perms(user_id):
+    """Get a specific user's permissions (admin only)"""
+    permissions = get_user_permissions(user_id)
+    return jsonify({"user_id": user_id, "permissions": permissions})
+
+@app.route("/api/permissions/<int:user_id>/<permission>", methods=["POST"])
+@admin_required
+def add_permission(user_id, permission):
+    """Grant a permission to a user"""
+    valid_perms = ['view_reports', 'manage_exports', 'manage_sensors', 'manage_alerts', 'manage_users']
+    
+    if permission not in valid_perms:
+        return jsonify({"error": f"Invalid permission. Valid: {', '.join(valid_perms)}"}), 400
+    
+    grant_permission(user_id, permission)
+    log_audit(session.get('user_id'), 'permission_granted', 'user', user_id, 
+             'permission', permission, request.remote_addr)
+    
+    return jsonify({"status": "ok", "permission": permission})
+
+@app.route("/api/permissions/<int:user_id>/<permission>", methods=["DELETE"])
+@admin_required
+def remove_permission(user_id, permission):
+    """Revoke a permission from a user"""
+    revoke_permission(user_id, permission)
+    log_audit(session.get('user_id'), 'permission_revoked', 'user', user_id,
+             'permission', permission, request.remote_addr)
+    
+    return jsonify({"status": "ok", "permission": permission})
+
+@app.route("/admin/user/<int:user_id>/delete", methods=["POST"])
+@admin_required
+def delete_user_admin(user_id):
+    """Delete a user account (admin only)"""
+    # Prevent self-deletion
+    if user_id == session.get('user_id'):
+        return jsonify({'error': 'Cannot delete your own account'}), 400
+    
+    admin_id = session.get('user_id')
+    ip_address = request.remote_addr
+    
+    if delete_user_with_audit(user_id, admin_id, ip_address):
+        return jsonify({'success': True})
+    
+    return jsonify({'error': 'Failed to delete user'}), 500
+
+@app.route("/admin/maintenance", methods=["POST"])
+@admin_required
+def admin_maintenance():
+    """Execute maintenance tasks"""
+    task = request.json.get('task')
+    admin_id = session.get('user_id')
+    ip_address = request.remote_addr
+    
+    results = {}
+    
+    if task == 'cleanup_old_data':
+        days = request.json.get('days', 90)
+        deleted = cleanup_old_data(days)
+        results['deleted_readings'] = deleted
+        log_audit(admin_id, 'maintenance_cleanup_data', None, None, 
+                 f'days={days}', f'deleted={deleted}', ip_address)
+    
+    elif task == 'cleanup_old_logs':
+        days = request.json.get('days', 180)
+        deleted = cleanup_old_audit_logs(days)
+        results['deleted_audit_logs'] = deleted
+        log_audit(admin_id, 'maintenance_cleanup_logs', None, None, 
+                 f'days={days}', f'deleted={deleted}', ip_address)
+    
+    elif task == 'cleanup_login_history':
+        days = request.json.get('days', 90)
+        deleted = cleanup_old_login_history(days)
+        results['deleted_logins'] = deleted
+        log_audit(admin_id, 'maintenance_cleanup_logins', None, None, 
+                 f'days={days}', f'deleted={deleted}', ip_address)
+    
+    else:
+        return jsonify({'error': 'Unknown maintenance task'}), 400
+    
+    return jsonify({'success': True, **results})
+
+@app.route("/admin/audit-logs")
+@admin_required
+def view_audit_logs():
+    """View audit logs"""
+    action_filter = request.args.get('action')
+    page = request.args.get('page', 1, type=int)
+    limit = 50
+    
+    logs = get_audit_logs(limit=limit * page, action_filter=action_filter)
+    
+    return render_template("audit_logs.html", logs=logs, action_filter=action_filter)
+
+# ================================================================================
+#                        ONBOARDING ROUTES
+# ================================================================================
+
+@app.route("/onboarding")
+@login_required
+def onboarding_page():
+    """Onboarding/tutorial page"""
+    user_id = session.get('user_id')
+    onboarding = get_onboarding_status(user_id)
+    
+    # Initialize if doesn't exist
+    if not onboarding:
+        init_onboarding(user_id)
+        onboarding = get_onboarding_status(user_id)
+    
+    return render_template("onboarding.html", onboarding=onboarding)
+
+@app.route("/api/onboarding/step/<int:step>", methods=["POST"])
+@login_required
+def update_onboarding_progress(step):
+    """Update onboarding step"""
+    user_id = session.get('user_id')
+    update_onboarding_step(user_id, step)
+    return jsonify({'success': True, 'step': step})
+
+@app.route("/api/onboarding/feature/<feature>", methods=["POST"])
+@login_required
+def mark_feature_seen(feature):
+    """Mark a feature as seen"""
+    user_id = session.get('user_id')
+    mark_feature_as_seen(user_id, feature)
+    return jsonify({'success': True})
+
+@app.route("/api/onboarding/complete", methods=["POST"])
+@login_required
+def finish_onboarding():
+    """Complete onboarding"""
+    user_id = session.get('user_id')
+    complete_onboarding(user_id)
+    return jsonify({'success': True})
+
+@app.route("/api/onboarding/tour", methods=["POST"])
+@login_required
+def handle_tour():
+    """Handle tour start/complete"""
+    user_id = session.get('user_id')
+    action = request.json.get('action')
+    
+    if action == 'start':
+        start_tour(user_id)
+    elif action == 'complete':
+        complete_tour(user_id)
+    
+    return jsonify({'success': True})
+
+# ================================================================================
+#                        DATA EXPORT ROUTES
+# ================================================================================
+
+@app.route("/api/export/json")
+@login_required
+@limiter.limit("10 per minute")
+def export_json():
+    """Export CO₂ data as JSON"""
+    user_id = session.get('user_id')
+    days = request.args.get('days', 30, type=int)
+    
+    db = get_db()
+    readings = db.execute("""
+        SELECT timestamp, ppm FROM co2_readings
+        WHERE timestamp >= datetime('now', '-' || ? || ' days')
+        ORDER BY timestamp DESC
+    """, (days,)).fetchall()
+    db.close()
+    
+    data = {
+        'export_date': datetime.now(UTC).isoformat(),
+        'days': days,
+        'count': len(readings),
+        'readings': [{'timestamp': r['timestamp'], 'ppm': r['ppm']} for r in readings]
+    }
+    
+    return jsonify(data)
+
+@app.route("/api/export/csv")
+@login_required
+@limiter.limit("10 per minute")
+def export_csv():
+    """Export CO₂ data as CSV"""
+    user_id = session.get('user_id')
+    days = request.args.get('days', 30, type=int)
+    
+    db = get_db()
+    readings = db.execute("""
+        SELECT timestamp, ppm FROM co2_readings
+        WHERE timestamp >= datetime('now', '-' || ? || ' days')
+        ORDER BY timestamp DESC
+    """, (days,)).fetchall()
+    db.close()
+    
+    # Generate CSV
+    csv_content = "timestamp,ppm\n"
+    for row in readings:
+        csv_content += f"{row['timestamp']},{row['ppm']}\n"
+    
+    response = make_response(csv_content)
+    response.headers['Content-Disposition'] = f'attachment; filename="co2_export_{days}d.csv"'
+    response.headers['Content-Type'] = 'text/csv'
+    
+    return response
+
+@app.route("/api/export/excel")
+@login_required
+@limiter.limit("10 per minute")
+def export_excel():
+    """Export CO₂ data as Excel"""
+    user_id = session.get('user_id')
+    days = request.args.get('days', 30, type=int)
+    
+    db = get_db()
+    readings = db.execute("""
+        SELECT timestamp, ppm FROM co2_readings
+        WHERE timestamp >= datetime('now', '-' || ? || ' days')
+        ORDER BY timestamp DESC
+    """, (days,)).fetchall()
+    db.close()
+    
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "CO₂ Data"
+        
+        # Headers
+        ws['A1'] = "Timestamp"
+        ws['B1'] = "PPM"
+        for cell in ['A1', 'B1']:
+            ws[cell].font = Font(bold=True, color="FFFFFF")
+            ws[cell].fill = PatternFill(start_color="3DD98F", end_color="3DD98F", fill_type="solid")
+        
+        # Data
+        for idx, row in enumerate(readings, start=2):
+            ws[f'A{idx}'] = row['timestamp']
+            ws[f'B{idx}'] = row['ppm']
+        
+        # Column widths
+        ws.column_dimensions['A'].width = 25
+        ws.column_dimensions['B'].width = 15
+        
+        # Save to bytes
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        response = make_response(output.getvalue())
+        response.headers['Content-Disposition'] = f'attachment; filename="co2_export_{days}d.xlsx"'
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        
+        return response
+    except ImportError:
+        return jsonify({'error': 'Excel support not installed. Install openpyxl: pip install openpyxl'}), 400
+
+@app.route("/api/export/schedule", methods=["POST"])
+@login_required
+def schedule_export():
+    """Setup scheduled exports"""
+    user_id = session.get('user_id')
+    format = request.json.get('format', 'csv')
+    frequency = request.json.get('frequency', 'weekly')
+    
+    if format not in ['csv', 'json', 'excel']:
+        return jsonify({'error': 'Invalid format'}), 400
+    
+    if frequency not in ['daily', 'weekly', 'monthly']:
+        return jsonify({'error': 'Invalid frequency'}), 400
+    
+    create_scheduled_export(user_id, format, frequency)
+    return jsonify({'success': True, 'format': format, 'frequency': frequency})
+
+@app.route("/api/export/scheduled")
+@login_required
+def get_scheduled_exports():
+    """Get user's scheduled exports"""
+    user_id = session.get('user_id')
+    exports = get_user_scheduled_exports(user_id)
+    
+    return jsonify({
+        'exports': [dict(e) for e in exports]
+    })
+
+@app.route("/api/export/scheduled/<int:export_id>", methods=["DELETE"])
+@login_required
+def remove_scheduled_export(export_id):
+    """Remove a scheduled export"""
+    user_id = session.get('user_id')
+    
+    # Verify ownership
+    db = get_db()
+    export = db.execute(
+        "SELECT user_id FROM scheduled_exports WHERE id = ?",
+        (export_id,)
+    ).fetchone()
+    db.close()
+    
+    if not export or export['user_id'] != user_id:
+        return jsonify({'error': 'Not found'}), 404
+    
+    delete_scheduled_export(export_id)
+    return jsonify({'success': True})
+
+@app.route("/api/import/csv", methods=["POST"])
+@admin_required
+@limiter.limit("5 per minute")
+def import_csv():
+    """Import CO₂ readings from CSV file"""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.endswith('.csv'):
+        return jsonify({'error': 'File must be CSV format'}), 400
+    
+    try:
+        # Parse CSV
+        stream = io.TextIOWrapper(file.stream, encoding='utf-8')
+        reader = csv.DictReader(stream)
+        readings = []
+        
+        for row in reader:
+            if row.get('timestamp') and row.get('ppm'):
+                readings.append({
+                    'timestamp': row['timestamp'],
+                    'ppm': row['ppm']
+                })
+        
+        if not readings:
+            return jsonify({'error': 'No valid readings found in CSV'}), 400
+        
+        # Import
+        result = import_csv_readings(readings)
+        
+        # Log the import
+        log_audit(session.get('user_id'), 'CSV_IMPORT', 'data', 0,
+                 'imported_count', str(result['imported']), request.remote_addr)
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({'error': f'Failed to parse CSV: {str(e)}'}), 400
+
+@app.route("/api/import/stats")
+@admin_required
+def import_stats():
+    """Get data import statistics"""
+    stats = get_csv_import_stats()
+    return jsonify(stats)
+
+# ================================================================================
+#                        ANALYTICS ROUTES (ENHANCED)
+# ================================================================================
+
+@app.route("/api/analytics/weekcompare")
+@login_required
+def analytics_week_compare():
+    """Get week-over-week comparison data"""
+    db = get_db()
+    
+    # Current week
+    current_week = db.execute("""
+        SELECT DATE(timestamp) as date, AVG(ppm) as avg_ppm, MAX(ppm) as max_ppm, MIN(ppm) as min_ppm, COUNT(*) as count
+        FROM co2_readings
+        WHERE timestamp >= datetime('now', '-7 days')
+        GROUP BY DATE(timestamp)
+        ORDER BY date
+    """).fetchall()
+    
+    # Previous week
+    prev_week = db.execute("""
+        SELECT DATE(timestamp) as date, AVG(ppm) as avg_ppm, MAX(ppm) as max_ppm, MIN(ppm) as min_ppm, COUNT(*) as count
+        FROM co2_readings
+        WHERE timestamp >= datetime('now', '-14 days') AND timestamp < datetime('now', '-7 days')
+        GROUP BY DATE(timestamp)
+        ORDER BY date
+    """).fetchall()
+    
+    db.close()
+    
+    return jsonify({
+        'current_week': [dict(row) for row in current_week],
+        'previous_week': [dict(row) for row in prev_week]
+    })
+
+@app.route("/api/analytics/trend")
+@login_required
+def analytics_trend():
+    """Get trend analysis (rising/stable/falling)"""
+    db = get_db()
+    
+    # Get hourly averages for last 7 days
+    data = db.execute("""
+        SELECT 
+            strftime('%Y-%m-%d %H:00', timestamp) as hour,
+            AVG(ppm) as avg_ppm,
+            COUNT(*) as readings
+        FROM co2_readings
+        WHERE timestamp >= datetime('now', '-7 days')
+        GROUP BY hour
+        ORDER BY hour DESC
+        LIMIT 168
+    """).fetchall()
+    
+    db.close()
+    
+    if len(data) < 2:
+        return jsonify({'trend': 'insufficient_data', 'data': []})
+    
+    # Calculate trend
+    recent_avg = sum(d['avg_ppm'] for d in data[:24]) / min(24, len(data))
+    older_avg = sum(d['avg_ppm'] for d in data[24:48]) / min(24, len(data[24:]))
+    
+    if older_avg == 0:
+        trend = 'insufficient_data'
+    else:
+        percent_change = ((recent_avg - older_avg) / older_avg) * 100
+        if percent_change > 5:
+            trend = 'rising'
+        elif percent_change < -5:
+            trend = 'falling'
+        else:
+            trend = 'stable'
+    
+    return jsonify({
+        'trend': trend,
+        'recent_avg': round(recent_avg, 1),
+        'older_avg': round(older_avg, 1),
+        'percent_change': round(((recent_avg - older_avg) / older_avg) * 100, 1) if older_avg else 0,
+        'data': [dict(d) for d in data]
+    })
+
+@app.route("/api/analytics/custom")
+@login_required
+def analytics_custom_range():
+    """Get data for custom date range"""
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+    
+    if not start_date or not end_date:
+        return jsonify({'error': 'start and end dates required'}), 400
+    
+    db = get_db()
+    
+    readings = db.execute("""
+        SELECT timestamp, ppm FROM co2_readings
+        WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
+        ORDER BY timestamp
+    """, (start_date, end_date)).fetchall()
+    
+    # Calculate stats
+    stats = db.execute("""
+        SELECT 
+            COUNT(*) as count,
+            AVG(ppm) as avg,
+            MIN(ppm) as min,
+            MAX(ppm) as max
+        FROM co2_readings
+        WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
+    """, (start_date, end_date)).fetchone()
+    
+    db.close()
+    
+    return jsonify({
+        'readings': [dict(r) for r in readings],
+        'stats': dict(stats) if stats else {'count': 0, 'avg': 0, 'min': 0, 'max': 0}
+    })
+
+@app.route("/api/analytics/compare-periods")
+@login_required
+def compare_periods():
+    """Compare CO₂ data between two time periods (e.g., this week vs last week)"""
+    period_type = request.args.get('type', 'week')  # week, month, or custom
+    
+    db = get_db()
+    
+    if period_type == 'week':
+        # Compare this week to last week
+        current_data = db.execute("""
+            SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
+            FROM co2_readings
+            WHERE timestamp >= datetime('now', '-7 days')
+        """).fetchone()
+        
+        previous_data = db.execute("""
+            SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
+            FROM co2_readings
+            WHERE timestamp >= datetime('now', '-14 days') AND timestamp < datetime('now', '-7 days')
+        """).fetchone()
+        
+    elif period_type == 'month':
+        # Compare this month to last month
+        current_data = db.execute("""
+            SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
+            FROM co2_readings
+            WHERE timestamp >= datetime('now', 'start of month')
+        """).fetchone()
+        
+        previous_data = db.execute("""
+            SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
+            FROM co2_readings
+            WHERE timestamp >= datetime('now', '-1 month', 'start of month')
+            AND timestamp < datetime('now', 'start of month')
+        """).fetchone()
+    else:
+        return jsonify({'error': 'Invalid period_type'}), 400
+    
+    db.close()
+    
+    # Calculate differences
+    def calc_diff(current, previous, field):
+        if previous[field] is None or previous[field] == 0:
+            return 0
+        return round(((current[field] - previous[field]) / previous[field]) * 100, 1)
+    
+    return jsonify({
+        'period': period_type,
+        'current': dict(current_data) if current_data else {},
+        'previous': dict(previous_data) if previous_data else {},
+        'differences': {
+            'avg_percent': calc_diff(current_data, previous_data, 'avg'),
+            'min_percent': calc_diff(current_data, previous_data, 'min'),
+            'max_percent': calc_diff(current_data, previous_data, 'max'),
+        }
+    })
+
+@app.route("/api/analytics/daily-comparison")
+@login_required
+def daily_comparison():
+    """Get daily averages for the last 30 days for trend visualization"""
+    db = get_db()
+    
+    days_data = db.execute("""
+        SELECT 
+            DATE(timestamp) as date,
+            AVG(ppm) as avg_ppm,
+            MIN(ppm) as min_ppm,
+            MAX(ppm) as max_ppm,
+            COUNT(*) as readings
+        FROM co2_readings
+        WHERE timestamp >= datetime('now', '-30 days')
+        GROUP BY DATE(timestamp)
+        ORDER BY date ASC
+    """).fetchall()
+    
+    db.close()
+    
+    return jsonify({
+        'days': 30,
+        'data': [dict(d) for d in days_data]
+    })
+
+@app.route("/api/analytics/report/pdf")
+@login_required
+def generate_pdf_report():
+    """Generate PDF report with charts"""
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+    
+    if not start_date or not end_date:
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+    
+    db = get_db()
+    
+    # Get data
+    readings = db.execute("""
+        SELECT DATE(timestamp) as date, AVG(ppm) as avg_ppm, MAX(ppm) as max_ppm, MIN(ppm) as min_ppm
+        FROM co2_readings
+        WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
+        GROUP BY DATE(timestamp)
+        ORDER BY date
+    """, (start_date, end_date)).fetchall()
+    
+    stats = db.execute("""
+        SELECT 
+            COUNT(*) as count,
+            AVG(ppm) as avg,
+            MIN(ppm) as min,
+            MAX(ppm) as max
+        FROM co2_readings
+        WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
+    """, (start_date, end_date)).fetchone()
+    
+    db.close()
+    
+    # Build HTML for PDF
+    html_content = f"""
+    <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                h1 {{ color: #3dd98f; }}
+                .stats {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin: 20px 0; }}
+                .stat {{ padding: 15px; background: #f0f0f0; border-radius: 8px; text-align: center; }}
+                .stat-value {{ font-size: 24px; font-weight: bold; color: #3dd98f; }}
+                .stat-label {{ color: #666; margin-top: 5px; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+                th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }}
+                th {{ background-color: #3dd98f; color: white; }}
+            </style>
+        </head>
+        <body>
+            <h1>🌬️ CO₂ Monitoring Report</h1>
+            <p>Period: {start_date} to {end_date}</p>
+            
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">{stats['count']}</div>
+                    <div class="stat-label">Readings</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{round(stats['avg'], 1)}</div>
+                    <div class="stat-label">Avg PPM</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{round(stats['min'], 0)}</div>
+                    <div class="stat-label">Min PPM</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{round(stats['max'], 0)}</div>
+                    <div class="stat-label">Max PPM</div>
+                </div>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Average PPM</th>
+                        <th>Min PPM</th>
+                        <th>Max PPM</th>
+                    </tr>
+                </thead>
+                <tbody>
+    """
+    
+    for row in readings:
+        html_content += f"""
+                    <tr>
+                        <td>{row['date']}</td>
+                        <td>{round(row['avg_ppm'], 1)}</td>
+                        <td>{round(row['min_ppm'], 0)}</td>
+                        <td>{round(row['max_ppm'], 0)}</td>
+                    </tr>
+        """
+    
+    html_content += """
+                </tbody>
+            </table>
+        </body>
+    </html>
+    """
+    
+    # Generate PDF
+    try:
+        pdf = HTML(string=html_content).write_pdf()
+        response = make_response(pdf)
+        response.headers['Content-Disposition'] = f'attachment; filename="report_{start_date}_to_{end_date}.pdf"'
+        response.headers['Content-Type'] = 'application/pdf'
+        return response
+    except Exception as e:
+        return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
 
 @app.route("/api/history/<range>")
 def history_range(range):
@@ -596,69 +1357,23 @@ def get_today_history():
 
 
 @app.route("/api/settings", methods=["GET", "POST", "DELETE"])
-@login_required
 def api_settings():
-    user_id = session.get('user_id')
-    
     if request.method == "POST":
-        # Save per-user settings
-        settings_data = {
-            'good_threshold': request.json.get('good_threshold', 800),
-            'bad_threshold': request.json.get('bad_threshold', 1200),
-            'alert_threshold': request.json.get('alert_threshold', 1400),
-            'realistic_mode': request.json.get('realistic_mode', True),
-            'update_speed': request.json.get('update_speed', 1),
-            'analysis_running': request.json.get('analysis_running', True),
-        }
-        update_user_settings(user_id, settings_data)
-        
-        # Broadcast update to all WebSocket clients so other pages refresh
-        socketio.emit('settings_update', settings_data)
-        
+        save_settings(request.json)
         return jsonify({"status": "ok"})
 
     if request.method == "DELETE":
-        # Reset per-user settings to defaults
         db = get_db()
-        db.execute("DELETE FROM user_settings WHERE user_id = ?", (user_id,))
+        db.execute("DELETE FROM settings")
         db.commit()
         db.close()
         
         # Broadcast reset to all WebSocket clients
         socketio.emit('settings_update', DEFAULT_SETTINGS)
+        
         return jsonify(DEFAULT_SETTINGS)
 
-    # GET - return per-user settings
-    user_settings = get_user_settings(user_id)
-    if user_settings:
-        # Convert sqlite3.Row to dict for .get() support
-        settings_dict = dict(user_settings) if hasattr(user_settings, 'keys') else user_settings
-        return jsonify({
-            "analysis_running": settings_dict.get('analysis_running', True),
-            "good_threshold": settings_dict.get('good_threshold', 800),
-            "bad_threshold": settings_dict.get('bad_threshold', 1200),
-            "alert_threshold": settings_dict.get('alert_threshold', 1400),
-            "realistic_mode": settings_dict.get('realistic_mode', True),
-            "update_speed": settings_dict.get('update_speed', 1),
-            "overview_update_speed": 5,
-        })
-    
     return jsonify(load_settings())
-
-@app.route("/api/user-info")
-@login_required
-def api_user_info():
-    user_id = session.get('user_id')
-    db = get_db()
-    user = db.execute("SELECT username, email FROM users WHERE id = ?", (user_id,)).fetchone()
-    db.close()
-    
-    if user:
-        return jsonify({
-            "username": user['username'],
-            "email": user['email']
-        })
-    return jsonify({"error": "User not found"}), 404
 
 @app.route("/api/history/latest/<int:limit>")
 def api_history_latest(limit):
@@ -688,6 +1403,39 @@ def api_reset_state():
     reset_state(base)
     return jsonify({"status": "ok", "base": base})
 
+@app.route("/api/thresholds", methods=["GET", "POST"])
+@login_required
+def api_thresholds():
+    """Get or update user's CO₂ thresholds"""
+    user_id = session['user_id']
+    
+    if request.method == "GET":
+        thresholds = get_user_thresholds(user_id)
+        return jsonify({
+            "good_level": thresholds['good_level'],
+            "warning_level": thresholds['warning_level'],
+            "critical_level": thresholds['critical_level']
+        })
+    
+    if request.method == "POST":
+        data = request.json
+        good = int(data.get('good_level', 800))
+        warning = int(data.get('warning_level', 1000))
+        critical = int(data.get('critical_level', 1200))
+        
+        # Validate: good < warning < critical
+        if not (good < warning < critical):
+            return jsonify({"error": "Invalid threshold order"}), 400
+        
+        update_user_thresholds(user_id, good, warning, critical)
+        log_audit(user_id, "UPDATE", "Thresholds updated")
+        
+        return jsonify({
+            "status": "ok",
+            "good_level": good,
+            "warning_level": warning,
+            "critical_level": critical
+        })
 
 def generate_pdf(html):
     pdf_io = io.BytesIO()
@@ -849,7 +1597,7 @@ def handle_request_data():
 @socketio.on('settings_change')
 def handle_settings_change(data):
     """Handle settings update and broadcast to all clients"""
-    # Settings now saved per-user via API endpoint
+    save_settings(data)
     # Broadcast to all clients
     socketio.emit('settings_update', data)
 

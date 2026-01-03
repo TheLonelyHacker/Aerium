@@ -1,0 +1,401 @@
+{% extends "base.html" %} {% block content %}
+
+<section class="card">
+  <h2>📊 Tableau de Bord Avancé</h2>
+  <p class="hint">Visualisations interactives des données CO₂</p>
+</section>
+
+<div class="analytics-controls" style="margin-bottom: 24px;">
+  <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+    <button id="chart-daily-btn" class="btn btn-secondary active" data-chart="daily">📈 Moyennes Quotidiennes</button>
+    <button id="chart-comparison-btn" class="btn btn-secondary" data-chart="comparison">📊 Comparaison</button>
+    <button id="chart-heatmap-btn" class="btn btn-secondary" data-chart="heatmap">🔥 Heatmap</button>
+    <button id="chart-hourly-btn" class="btn btn-secondary" data-chart="hourly">⏱️ Horaire</button>
+  </div>
+</div>
+
+<!-- Daily Average Chart -->
+<section id="daily-chart-section" class="card" style="display: block;">
+  <h3>Moyennes Quotidiennes (30 jours)</h3>
+  <canvas id="dailyChart" style="max-height: 400px;"></canvas>
+  <div id="daily-stats" style="margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;"></div>
+</section>
+
+<!-- Comparison Chart -->
+<section id="comparison-chart-section" class="card" style="display: none;">
+  <h3>Comparaison de Périodes</h3>
+  <div style="margin-bottom: 12px;">
+    <label style="font-size: 0.9rem;">
+      <input type="radio" name="comparison-type" value="week" checked /> Cette semaine vs semaine dernière
+      <input type="radio" name="comparison-type" value="month" style="margin-left: 16px;"/> Ce mois vs mois dernier
+    </label>
+  </div>
+  <canvas id="comparisonChart" style="max-height: 400px;"></canvas>
+  <div id="comparison-stats" style="margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;"></div>
+</section>
+
+<!-- Heatmap Chart -->
+<section id="heatmap-chart-section" class="card" style="display: none;">
+  <h3>Heatmap Horaire (7 derniers jours)</h3>
+  <canvas id="heatmapChart" style="max-height: 400px;"></canvas>
+  <p class="hint" style="margin-top: 12px;">Les couleurs représentent les niveaux de CO₂ par heure du jour</p>
+</section>
+
+<!-- Hourly Chart -->
+<section id="hourly-chart-section" class="card" style="display: none;">
+  <h3>Tendances Horaires (7 jours)</h3>
+  <canvas id="hourlyChart" style="max-height: 400px;"></canvas>
+  <div id="hourly-stats" style="margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;"></div>
+</section>
+
+<script>
+let dailyChartInstance = null;
+let comparisonChartInstance = null;
+let heatmapChartInstance = null;
+let hourlyChartInstance = null;
+
+// Chart colors
+const colors = {
+  good: '#3dd98f',
+  warning: '#f9c74f',
+  critical: '#ef5350',
+  primary: '#4db8ff',
+  accent: '#a78bfa'
+};
+
+async function loadDailyChart() {
+  try {
+    const response = await fetch('/api/analytics/daily-comparison');
+    const data = await response.json();
+    
+    const ctx = document.getElementById('dailyChart').getContext('2d');
+    
+    if (dailyChartInstance) dailyChartInstance.destroy();
+    
+    dailyChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.data.map(d => d.date),
+        datasets: [
+          {
+            label: 'Moyenne (ppm)',
+            data: data.data.map(d => d.avg_ppm),
+            borderColor: colors.primary,
+            backgroundColor: `${colors.primary}20`,
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: colors.primary
+          },
+          {
+            label: 'Min (ppm)',
+            data: data.data.map(d => d.min_ppm),
+            borderColor: colors.good,
+            borderDash: [5, 5],
+            borderWidth: 1,
+            pointRadius: 2
+          },
+          {
+            label: 'Max (ppm)',
+            data: data.data.map(d => d.max_ppm),
+            borderColor: colors.critical,
+            borderDash: [5, 5],
+            borderWidth: 1,
+            pointRadius: 2
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            labels: { color: 'var(--text)', font: { size: 12 } }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: 'var(--text)',
+            bodyColor: 'var(--text)',
+            padding: 10,
+            cornerRadius: 6
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: false,
+            ticks: { color: 'var(--muted)' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          },
+          x: {
+            ticks: { color: 'var(--muted)' },
+            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+          }
+        }
+      }
+    });
+    
+    // Display stats
+    const avgs = data.data.map(d => d.avg_ppm).filter(v => v !== null);
+    const statsHtml = `
+      <div style="padding: 12px; background: rgba(61, 217, 143, 0.1); border-radius: 8px; border-left: 4px solid var(--good);">
+        <div style="font-size: 0.85rem; color: var(--muted);">Moyenne</div>
+        <div style="font-weight: 600; font-size: 1.3rem;">${(avgs.reduce((a, b) => a + b, 0) / avgs.length).toFixed(0)} ppm</div>
+      </div>
+      <div style="padding: 12px; background: rgba(249, 199, 79, 0.1); border-radius: 8px; border-left: 4px solid var(--medium);">
+        <div style="font-size: 0.85rem; color: var(--muted);">Min</div>
+        <div style="font-weight: 600; font-size: 1.3rem;">${Math.min(...avgs).toFixed(0)} ppm</div>
+      </div>
+      <div style="padding: 12px; background: rgba(239, 83, 80, 0.1); border-radius: 8px; border-left: 4px solid var(--bad);">
+        <div style="font-size: 0.85rem; color: var(--muted);">Max</div>
+        <div style="font-weight: 600; font-size: 1.3rem;">${Math.max(...avgs).toFixed(0)} ppm</div>
+      </div>
+    `;
+    document.getElementById('daily-stats').innerHTML = statsHtml;
+  } catch (error) {
+    console.error('Error loading daily chart:', error);
+  }
+}
+
+async function loadComparisonChart(type = 'week') {
+  try {
+    const response = await fetch(`/api/analytics/compare-periods?type=${type}`);
+    const data = await response.json();
+    
+    const ctx = document.getElementById('comparisonChart').getContext('2d');
+    
+    if (comparisonChartInstance) comparisonChartInstance.destroy();
+    
+    const periods = type === 'week' ? ['Semaine actuelle', 'Semaine dernière'] : ['Mois actuel', 'Mois dernier'];
+    
+    comparisonChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: periods,
+        datasets: [
+          {
+            label: 'Moyenne (ppm)',
+            data: [data.current.avg, data.previous.avg],
+            backgroundColor: [colors.primary, `${colors.primary}60`],
+            borderColor: colors.primary,
+            borderWidth: 1
+          },
+          {
+            label: 'Min (ppm)',
+            data: [data.current.min, data.previous.min],
+            backgroundColor: [colors.good, `${colors.good}60`],
+            borderColor: colors.good,
+            borderWidth: 1
+          },
+          {
+            label: 'Max (ppm)',
+            data: [data.current.max, data.previous.max],
+            backgroundColor: [colors.critical, `${colors.critical}60`],
+            borderColor: colors.critical,
+            borderWidth: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            labels: { color: 'var(--text)' }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { color: 'var(--muted)' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          },
+          x: {
+            ticks: { color: 'var(--muted)' },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+    
+    // Display stats
+    const diffAvg = data.differences.avg_percent;
+    const diffMin = data.differences.min_percent;
+    const diffMax = data.differences.max_percent;
+    
+    const arrow = (val) => val > 0 ? '📈' : val < 0 ? '📉' : '➡️';
+    const color = (val) => val > 0 ? 'var(--bad)' : 'var(--good)';
+    
+    const statsHtml = `
+      <div style="padding: 12px; background: rgba(74, 184, 255, 0.1); border-radius: 8px; border-left: 4px solid var(--accent);">
+        <div style="font-size: 0.85rem; color: var(--muted);">Moyenne ${arrow(diffAvg)}</div>
+        <div style="font-weight: 600; font-size: 1.3rem; color: ${color(diffAvg)};">${Math.abs(diffAvg).toFixed(1)}%</div>
+      </div>
+      <div style="padding: 12px; background: rgba(61, 217, 143, 0.1); border-radius: 8px; border-left: 4px solid var(--good);">
+        <div style="font-size: 0.85rem; color: var(--muted);">Min ${arrow(diffMin)}</div>
+        <div style="font-weight: 600; font-size: 1.3rem; color: ${color(diffMin)};">${Math.abs(diffMin).toFixed(1)}%</div>
+      </div>
+      <div style="padding: 12px; background: rgba(239, 83, 80, 0.1); border-radius: 8px; border-left: 4px solid var(--bad);">
+        <div style="font-size: 0.85rem; color: var(--muted);">Max ${arrow(diffMax)}</div>
+        <div style="font-weight: 600; font-size: 1.3rem; color: ${color(diffMax)};">${Math.abs(diffMax).toFixed(1)}%</div>
+      </div>
+    `;
+    document.getElementById('comparison-stats').innerHTML = statsHtml;
+  } catch (error) {
+    console.error('Error loading comparison chart:', error);
+  }
+}
+
+async function loadHeatmapChart() {
+  try {
+    const response = await fetch('/api/analytics/trend');
+    const data = await response.json();
+    
+    // Group by hour of day
+    const heatmapData = {};
+    for (let h = 0; h < 24; h++) {
+      heatmapData[h] = [];
+    }
+    
+    data.data.forEach(d => {
+      const date = new Date(d.hour);
+      const hour = date.getHours();
+      heatmapData[hour].push(d.avg_ppm || 0);
+    });
+    
+    // Calculate average for each hour
+    const hourlyAvgs = Object.keys(heatmapData).map(h => {
+      const values = heatmapData[h];
+      return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+    });
+    
+    const ctx = document.getElementById('heatmapChart').getContext('2d');
+    
+    if (heatmapChartInstance) heatmapChartInstance.destroy();
+    
+    heatmapChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: Array.from({length: 24}, (_, i) => `${i}h`),
+        datasets: [{
+          label: 'CO₂ moyen (ppm)',
+          data: hourlyAvgs,
+          backgroundColor: hourlyAvgs.map(val => {
+            if (val <= 800) return colors.good;
+            if (val <= 1000) return colors.warning;
+            if (val <= 1200) return '#ff9800';
+            return colors.critical;
+          }),
+          borderColor: 'rgba(255, 255, 255, 0.2)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        indexAxis: 'x',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { color: 'var(--muted)' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          },
+          x: {
+            ticks: { color: 'var(--muted)' },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error loading heatmap:', error);
+  }
+}
+
+async function loadHourlyChart() {
+  try {
+    const response = await fetch('/api/analytics/trend');
+    const data = await response.json();
+    
+    const ctx = document.getElementById('hourlyChart').getContext('2d');
+    
+    if (hourlyChartInstance) hourlyChartInstance.destroy();
+    
+    hourlyChartInstance = new Chart(ctx, {
+      type: 'area',
+      data: {
+        labels: data.data.slice(0, 168).map(d => d.hour).reverse(),
+        datasets: [{
+          label: 'CO₂ (ppm)',
+          data: data.data.slice(0, 168).map(d => d.avg_ppm).reverse(),
+          borderColor: colors.accent,
+          backgroundColor: `${colors.accent}30`,
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, labels: { color: 'var(--text)' } }
+        },
+        scales: {
+          y: {
+            beginAtZero: false,
+            ticks: { color: 'var(--muted)' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          },
+          x: {
+            ticks: { color: 'var(--muted)' },
+            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error loading hourly chart:', error);
+  }
+}
+
+// Tab switching
+document.querySelectorAll('[data-chart]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const chart = this.getAttribute('data-chart');
+    
+    // Hide all sections
+    document.querySelectorAll('[id$="-chart-section"]').forEach(s => s.style.display = 'none');
+    document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
+    
+    // Show selected
+    this.classList.add('active');
+    document.getElementById(`${chart}-chart-section`).style.display = 'block';
+    
+    // Load chart
+    if (chart === 'daily') loadDailyChart();
+    else if (chart === 'comparison') loadComparisonChart();
+    else if (chart === 'heatmap') loadHeatmapChart();
+    else if (chart === 'hourly') loadHourlyChart();
+  });
+});
+
+// Comparison period radio buttons
+document.querySelectorAll('input[name="comparison-type"]').forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    loadComparisonChart(e.target.value);
+  });
+});
+
+// Load initial chart
+loadDailyChart();
+</script>
+
+{% endblock %}

@@ -29,21 +29,22 @@
       </div>
 
       <div class="nav-center">
-        <a href="/dashboard">📋 Tableau de bord</a>
         <a href="/">🏠 Vue d'ensemble</a>
         <a href="/live">📊 Live</a>
         <a href="/settings">⚙️ Paramètres</a>
         <a href="/analytics">🔎 Analytique</a>
+        <a href="/visualization">📈 Visualisations</a>
+        {% if session.get('username') %}
+        <a href="{{ url_for('onboarding_page') }}">📖 Guide</a>
+        {% endif %}
         <span class="nav-underline"></span>
       </div>
 
       <div class="nav-right">
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">☰</button>
         <button id="theme-toggle-btn" class="theme-toggle" title="Basculer le thème">
           <span class="theme-icon">🌙</span>
-        </button>
-        <button id="alerts-btn" class="nav-alerts-btn" title="Alertes">
-          🔔
-          <span id="alert-badge" class="alert-badge" style="display: none;">0</span>
         </button>
         <div class="nav-status" id="nav-analysis">
           <span class="dot"></span>
@@ -58,22 +59,28 @@
         </div>
         {% if session.get('username') %}
         <div class="nav-user">
-          <a href="{{ url_for('dashboard') }}" class="nav-profile-link" title="Tableau de bord">👤 {{ session.get('username') }}</a>
+          <a href="{{ url_for('profile') }}" class="nav-profile-link" title="Profil">👤 {{ session.get('username') }}</a>
           <a href="{{ url_for('logout') }}" class="nav-logout" title="Déconnexion">🚪</a>
         </div>
         {% endif %}
       </div>
     </nav>
 
-    <!-- Alerts Panel -->
-    <div id="alerts-panel" class="alerts-panel">
-      <div class="alerts-panel-header">
-        <h3>📢 Alertes Récentes</h3>
-        <button id="close-alerts-btn" class="close-btn">✕</button>
-      </div>
-      <div id="alerts-list" class="alerts-list">
-        <p class="no-alerts">Aucune alerte pour le moment</p>
-      </div>
+    <!-- Mobile Navigation Menu -->
+    <div class="mobile-menu">
+      <a href="/">🏠 Vue d'ensemble</a>
+      <a href="/live">📊 Live</a>
+      <a href="/settings">⚙️ Paramètres</a>
+      <a href="/analytics">🔎 Analytique</a>
+      {% if session.get('username') %}
+      <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 10px 0;">
+      <a href="{{ url_for('onboarding_page') }}">📖 Guide</a>
+      <a href="{{ url_for('profile') }}">👤 Profil</a>
+      <a href="{{ url_for('logout') }}">🚪 Déconnexion</a>
+      {% else %}
+      <a href="{{ url_for('login_page') }}">🔐 Se connecter</a>
+      <a href="{{ url_for('register_page') }}">📝 S'inscrire</a>
+      {% endif %}
     </div>
 
     <main class="container">{% block content %}{% endblock %}</main>
@@ -81,9 +88,9 @@
 
     <!-- Module Loading Order (DO NOT CHANGE) -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script defer src="{{ url_for('static', filename='js/mobile.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/websocket.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script defer src="{{ url_for('static', filename='js/alerts.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/settings.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/analytics.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/live.js') }}"></script>

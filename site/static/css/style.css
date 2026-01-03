@@ -149,9 +149,9 @@ h2 {
    Navbar Container
 ──────────────────────────────────────────────────────────────────────────── */
 .navbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   padding: 14px 28px;
   background: linear-gradient(180deg, rgba(10, 14, 24, 0.95) 0%, rgba(10, 14, 24, 0.85) 100%);
   backdrop-filter: blur(12px);
@@ -230,9 +230,7 @@ body[style*="--bg: #ffffff"] .theme-toggle:hover {
    Navbar Center (Navigation Links)
 ──────────────────────────────────────────────────────────────────────────── */
 .nav-center {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
   display: flex;
   justify-content: center;
   gap: 6px;
@@ -309,188 +307,6 @@ body[style*="--bg: #ffffff"] .theme-toggle:hover {
 .theme-toggle .theme-icon {
   display: inline-block;
   transition: transform 0.3s ease;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────── 
-   Alerts Button
-──────────────────────────────────────────────────────────────────────────── */
-.nav-alerts-btn {
-  position: relative;
-  background: transparent;
-  border: 1px solid var(--border-light);
-  color: var(--muted);
-  padding: 8px 10px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-}
-
-.nav-alerts-btn:hover {
-  background: rgba(239, 83, 80, 0.12);
-  color: #ef5350;
-  border-color: #ef5350;
-  box-shadow: 0 0 0 2px rgba(239, 83, 80, 0.15);
-}
-
-.alert-badge {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  background: #ef5350;
-  color: white;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-  border: 2px solid var(--bg);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────── 
-   Alerts Panel
-──────────────────────────────────────────────────────────────────────────── */
-.alerts-panel {
-  position: fixed;
-  top: 0;
-  right: -350px;
-  width: 350px;
-  height: 100vh;
-  background: linear-gradient(180deg, rgba(19, 27, 42, 0.95) 0%, rgba(19, 27, 42, 0.98) 100%);
-  border-left: 1px solid var(--border-light);
-  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.3);
-  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 9997;
-  display: flex;
-  flex-direction: column;
-  backdrop-filter: blur(12px);
-}
-
-.alerts-panel.open {
-  right: 0;
-}
-
-.alerts-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid var(--border-light);
-  flex-shrink: 0;
-}
-
-.alerts-panel-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: #e5e7eb;
-  font-weight: 600;
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 4px 8px;
-  transition: color 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-btn:hover {
-  color: #ef5350;
-}
-
-.alerts-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.no-alerts {
-  color: var(--muted);
-  text-align: center;
-  padding: 32px 16px;
-  font-size: 0.9rem;
-}
-
-.alert-item {
-  background: rgba(239, 83, 80, 0.1);
-  border: 1px solid rgba(239, 83, 80, 0.3);
-  border-radius: 10px;
-  padding: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #ef5350;
-  font-size: 0.9rem;
-  position: relative;
-  padding-right: 32px;
-}
-
-.alert-item:hover {
-  background: rgba(239, 83, 80, 0.15);
-  border-color: rgba(239, 83, 80, 0.5);
-}
-
-.alert-item.success {
-  background: rgba(61, 217, 143, 0.1);
-  border-color: rgba(61, 217, 143, 0.3);
-  color: #3dd98f;
-}
-
-.alert-item.success:hover {
-  background: rgba(61, 217, 143, 0.15);
-  border-color: rgba(61, 217, 143, 0.5);
-}
-
-.alert-item.warning {
-  background: rgba(249, 199, 79, 0.1);
-  border-color: rgba(249, 199, 79, 0.3);
-  color: #f9c74f;
-}
-
-.alert-item.warning:hover {
-  background: rgba(249, 199, 79, 0.15);
-  border-color: rgba(249, 199, 79, 0.5);
-}
-
-.alert-item-time {
-  display: block;
-  font-size: 0.8rem;
-  color: var(--muted);
-  margin-top: 6px;
-}
-
-.alert-item-close {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: transparent;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  opacity: 0.6;
-  transition: opacity 0.2s ease;
-  font-size: 1.2rem;
-  padding: 4px;
-}
-
-.alert-item-close:hover {
-  opacity: 1;
 }
 
 .alert-log-close {
@@ -2368,7 +2184,18 @@ canvas {
     padding: 8px 6px;
   }
 
+  /* Toast notification on phone */
+  #toast-container {
+    bottom: 10px !important;
+    right: 10px !important;
+    left: 10px !important;
+    max-width: none !important;
+  }
 
+  .toast {
+    width: 100%;
+    border-radius: 8px;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── 
@@ -2614,6 +2441,63 @@ body[style*="--bg: #ffffff"] .empty-state-title {
   color: #111827;
 }
 
+/* Notification toast styles */
+.notification-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 16px 20px;
+  background: #0b0d12;
+  color: #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: slideInRight 0.3s ease-out;
+  z-index: 9998;
+  max-width: 320px;
+}
+
+.notification-toast.success {
+  background: rgba(74, 222, 128, 0.2);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  color: #4ade80;
+}
+
+.notification-toast.error {
+  background: rgba(248, 113, 113, 0.2);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #f87171;
+}
+
+.notification-toast.warning {
+  background: rgba(250, 204, 21, 0.2);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  color: #facc15;
+}
+
+body[style*="--bg: #ffffff"] .notification-toast {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #d1d5db;
+}
+
+body[style*="--bg: #ffffff"] .notification-toast.success {
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.3);
+  color: #059669;
+}
+
+body[style*="--bg: #ffffff"] .notification-toast.error {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #dc2626;
+}
+
+body[style*="--bg: #ffffff"] .notification-toast.warning {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.3);
+  color: #d97706;
+}
+
 /* Keyboard shortcut hint */
 .kbd-hint {
   display: inline-block;
@@ -2633,4 +2517,394 @@ body[style*="--bg: #ffffff"] .kbd-hint {
   color: #6b7280;
 }
 
+/* Toast Animations */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(400px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(400px);
+  }
+}
+
+/* Toast Notification Styles */
+.toast {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toast:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* ================================================================================
+                      MOBILE & RESPONSIVE DESIGN
+================================================================================ */
+
+/* Desktop: hide mobile toggle and menu */
+.mobile-menu-toggle {
+  display: none !important;
+}
+
+.mobile-menu {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  /* Mobile: show mobile toggle and menu */
+  .mobile-menu-toggle {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    transition: all 0.3s ease;
+    order: -1;
+  }
+
+  .mobile-menu-toggle:hover {
+    color: var(--accent);
+    transform: scale(1.1);
+  }
+
+  .mobile-menu {
+    display: block !important;
+    position: fixed;
+    left: -100%;
+    top: 60px;
+    width: 100%;
+    height: calc(100vh - 60px);
+    background: linear-gradient(135deg, rgba(10, 14, 24, 0.98) 0%, rgba(19, 27, 42, 0.98) 100%);
+    padding: 20px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9998;
+    overflow-y: auto;
+  }
+
+  .mobile-menu.active {
+    left: 0;
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Container */
+  .container {
+    padding: 12px;
+    max-width: 100%;
+  }
+
+  /* Navbar Responsive */
+  .navbar {
+    grid-template-columns: auto 1fr auto;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .nav-logo {
+    height: 32px;
+    width: auto;
+  }
+
+  /* Hide center nav on mobile, show mobile menu instead */
+  .nav-center {
+    display: none;
+  }
+
+  /* Mobile navbar right - reset width and justify */
+  .nav-right {
+    min-width: auto;
+    gap: 8px;
+  }
+
+  /* Hide non-essential nav-right items on mobile */
+  .nav-status,
+  .nav-mini,
+  .nav-user {
+    display: none !important;
+  }
+
+  /* Mobile Menu */
+  .mobile-menu {
+    display: block;
+    position: fixed;
+    left: -100%;
+    top: 60px;
+    width: 100%;
+    height: calc(100vh - 60px);
+    background: linear-gradient(135deg, rgba(10, 14, 24, 0.98) 0%, rgba(19, 27, 42, 0.98) 100%);
+    padding: 20px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9998;
+    overflow-y: auto;
+  }
+
+  .mobile-menu.active {
+    left: 0;
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .mobile-menu a {
+    display: block;
+    padding: 14px 16px;
+    border-radius: 8px;
+    color: var(--text);
+    text-decoration: none;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+    font-weight: 500;
+  }
+
+  .mobile-menu a:hover {
+    background: rgba(61, 217, 143, 0.2);
+    color: var(--good);
+    transform: translateX(4px);
+  }
+
+  .mobile-menu a.active {
+    background: rgba(61, 217, 143, 0.3);
+    color: var(--good);
+    border-left: 4px solid var(--good);
+    padding-left: 12px;
+  }
+
+  /* Hide full nav elements on mobile */
+  .nav-right {
+    display: none !important;
+  }
+
+  /* Cards on mobile */
+  .card {
+    padding: 16px;
+    margin-bottom: 16px;
+    border-radius: 12px;
+  }
+
+  .card h2 {
+    font-size: 1.3rem;
+    margin-bottom: 12px;
+  }
+
+  .card h3 {
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+  }
+
+  /* Forms on mobile */
+  input, textarea, select {
+    padding: 12px !important;
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    border-radius: 8px !important;
+  }
+
+  button, .link {
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    border-radius: 8px !important;
+    min-height: 44px; /* Touch-friendly size */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Grid layouts on mobile */
+  .grid-auto {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Tables on mobile */
+  table {
+    font-size: 12px !important;
+  }
+
+  table th, table td {
+    padding: 10px 6px !important;
+  }
+
+  /* Settings page on mobile */
+  .settings-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Charts on mobile */
+  canvas {
+    max-height: 250px !important;
+  }
+
+  /* Admin dashboard on mobile */
+  .admin-tab {
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+  }
+
+  /* Tabs on mobile */
+  .tabs {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tab-button {
+    flex: 1;
+    min-width: 100px;
+    padding: 10px 8px !important;
+    font-size: 12px !important;
+  }
+
+  /* Stats grid on mobile */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  /* Navbar sparkline on mobile */
+  #nav-ppm-spark {
+    display: none;
+  }
+
+  .nav-mini {
+    display: none;
+  }
+
+  /* Responsive navbar status */
+  .nav-status {
+    font-size: 12px;
+  }
+
+  .nav-status-text .label {
+    display: none;
+  }
+
+  .nav-status-text .sublabel {
+    display: block;
+    font-size: 10px;
+  }
+
+  /* Ensure touch targets are at least 44x44px */
+  button, a.link, input[type="checkbox"], input[type="radio"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Profile section on mobile */
+  .profile-section {
+    flex-direction: column !important;
+  }
+
+  /* Modal/dialog adjustments */
+  .modal {
+    width: 95vw !important;
+    margin: 10px auto !important;
+    border-radius: 12px !important;
+  }
+
+  /* Footer adjustments */
+  footer {
+    padding: 16px 12px !important;
+  }
+}
+
+/* Ultra-small screens (phones) */
+@media (max-width: 480px) {
+  .container {
+    padding: 8px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .card h2 {
+    font-size: 1.1rem;
+  }
+
+  .navbar {
+    padding: 8px;
+  }
+
+  /* Stack admin stat boxes vertically */
+  .stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Reduce table text on very small screens */
+  table {
+    font-size: 11px !important;
+  }
+
+  /* Hide non-essential navbar elements */
+  .nav-logo {
+    height: 28px;
+  }
+
+  /* Ensure buttons wrap properly */
+  .step-actions {
+    flex-direction: column !important;
+  }
+
+  button {
+    width: 100% !important;
+  }
+
+  /* Adjust spacing */
+  h1 { font-size: 1.4rem !important; }
+  h2 { font-size: 1.2rem !important; }
+  h3 { font-size: 1rem !important; }
+
+  /* Single column layout for everything */
+  [class*="grid"], [class*="flex"] {
+    flex-direction: column !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Onboarding on mobile */
+  .onboarding-step {
+    padding: 20px 16px !important;
+  }
+
+  .step-number {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .step-title {
+    font-size: 18px !important;
+  }
+}
+
+/* Landscape on small screens */
+@media (max-height: 600px) {
+  .navbar {
+    padding: 8px 12px;
+  }
+
+  .container {
+    padding: 8px;
+  }
+
+  .card {
+    margin-bottom: 12px;
+    padding: 12px;
+  }
+
+  canvas {
+    max-height: 200px;
+  }
 }
