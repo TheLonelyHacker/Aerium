@@ -352,16 +352,18 @@ def cleanup_old_data(days_to_keep=90):
 def get_user_by_username(username):
     """Get user by username"""
     db = get_db()
+    db.row_factory = sqlite3.Row
     user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     db.close()
-    return user
+    return dict(user) if user else None
 
 def get_user_by_id(user_id):
     """Get user by ID"""
     db = get_db()
+    db.row_factory = sqlite3.Row
     user = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     db.close()
-    return user
+    return dict(user) if user else None
 # ================================================================================
 #                        PASSWORD RESET
 # ================================================================================
@@ -574,6 +576,7 @@ def create_user(username, email, password_hash):
 def get_user_settings(user_id):
     """Get user settings, create if doesn't exist"""
     db = get_db()
+    db.row_factory = sqlite3.Row
     settings = db.execute(
         "SELECT * FROM user_settings WHERE user_id = ?", 
         (user_id,)
@@ -594,7 +597,7 @@ def get_user_settings(user_id):
         ).fetchone()
     
     db.close()
-    return settings
+    return dict(settings) if settings else None
 
 def update_user_settings(user_id, **kwargs):
     """Update user settings"""
@@ -698,9 +701,10 @@ def cleanup_expired_tokens():
 def get_user_by_email(email):
     """Get user by email"""
     db = get_db()
+    db.row_factory = sqlite3.Row
     user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     db.close()
-    return user
+    return dict(user) if user else None
 
 # ================================================================================
 #                        AUDIT LOGGING
@@ -922,6 +926,7 @@ def init_onboarding(user_id):
 def get_onboarding_status(user_id):
     """Get user's onboarding status"""
     db = get_db()
+    db.row_factory = sqlite3.Row
     
     onboarding = db.execute(
         "SELECT * FROM onboarding WHERE user_id = ?",
@@ -929,7 +934,11 @@ def get_onboarding_status(user_id):
     ).fetchone()
     
     db.close()
-    return onboarding
+    
+    # Convert Row to dict if exists
+    if onboarding:
+        return dict(onboarding)
+    return None
 
 def update_onboarding_step(user_id, step):
     """Update onboarding progress"""

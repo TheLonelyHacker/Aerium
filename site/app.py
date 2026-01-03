@@ -439,29 +439,28 @@ def profile():
     user = get_user_by_id(user_id)
     user_settings = get_user_settings(user_id)
     login_history = get_login_history(user_id, limit=5)  # Get last 5 logins
+    admin_stats = None
+    admin_users = None
     
+    # Check if user is admin to load admin dashboard data
+    if is_admin(user_id):
+        admin_stats = get_admin_stats()
+        admin_users = get_all_users()
+    
+    # Note: CO₂ threshold settings are now handled in /settings page
+    # Profile page is only for user info and admin dashboard
     if request.method == "POST":
-        # Update user settings
-        good_threshold = request.form.get('good_threshold', type=int)
-        bad_threshold = request.form.get('bad_threshold', type=int)
-        alert_threshold = request.form.get('alert_threshold', type=int)
-        audio_alerts = request.form.get('audio_alerts') == 'on'
-        email_alerts = request.form.get('email_alerts') == 'on'
-        
-        update_user_settings(
-            user_id,
-            good_threshold=good_threshold,
-            bad_threshold=bad_threshold,
-            alert_threshold=alert_threshold,
-            audio_alerts=audio_alerts,
-            email_alerts=email_alerts
-        )
-        
-        # Reload settings
-        user_settings = get_user_settings(user_id)
-        return render_template("profile.html", user=user, settings=user_settings, login_history=login_history, success=True)
+        # This route no longer handles form submissions
+        # CO₂ settings go to /api/settings
+        pass
     
-    return render_template("profile.html", user=user, settings=user_settings, login_history=login_history)
+    return render_template("profile.html", 
+                         user=user, 
+                         settings=user_settings, 
+                         login_history=login_history,
+                         is_admin=is_admin(user_id),
+                         admin_stats=admin_stats,
+                         admin_users=admin_users)
 
 @app.route("/change-password", methods=["GET", "POST"])
 @login_required
