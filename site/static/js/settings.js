@@ -1,4 +1,18 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // Load user info
+  const usernameDisplay = document.getElementById("username-display");
+  const emailDisplay = document.getElementById("email-display");
+  
+  if (usernameDisplay && emailDisplay) {
+    fetch('/api/user-info')
+      .then(r => r.json())
+      .then(data => {
+        if (data.username) usernameDisplay.textContent = data.username;
+        if (data.email) emailDisplay.textContent = data.email;
+      })
+      .catch(err => console.error('Failed to load user info:', err));
+  }
+
   let isSnapping = false;
   let savePending = false;
 
@@ -338,14 +352,28 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!res.ok) throw new Error('Settings save failed');
       }
       
-      showNotification('✓ Paramètres enregistrés avec succès', 'success', 2000);
+      window.dispatchEvent(new CustomEvent('alert-updated', {
+        detail: {
+          timestamp: new Date(),
+          message: 'Paramètres enregistrés avec succès',
+          type: 'recovery',
+          value: 0
+        }
+      }));
       saveBtn.textContent = originalText;
       
       // Save to localStorage for persistence
       saveUserPreferences('settings', settingsData);
     } catch (e) {
       console.error('Settings save error:', e);
-      showNotification('❌ Erreur lors de l\'enregistrement', 'error', 3000);
+      window.dispatchEvent(new CustomEvent('alert-updated', {
+        detail: {
+          timestamp: new Date(),
+          message: 'Erreur lors de l\'enregistrement',
+          type: 'error',
+          value: 0
+        }
+      }));
       saveBtn.textContent = originalText;
     } finally {
       savePending = false;
@@ -365,11 +393,25 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error('Reset failed');
       
       await loadSettings();
-      showNotification('✓ Paramètres réinitialisés', 'success', 2000);
+      window.dispatchEvent(new CustomEvent('alert-updated', {
+        detail: {
+          timestamp: new Date(),
+          message: 'Paramètres réinitialisés',
+          type: 'recovery',
+          value: 0
+        }
+      }));
       localStorage.removeItem('pref_settings');
     } catch (e) {
       console.error('Settings reset error:', e);
-      showNotification('❌ Erreur lors de la réinitialisation', 'error', 3000);
+      window.dispatchEvent(new CustomEvent('alert-updated', {
+        detail: {
+          timestamp: new Date(),
+          message: 'Erreur lors de la réinitialisation',
+          type: 'error',
+          value: 0
+        }
+      }));
     } finally {
       resetBtn.disabled = false;
       resetBtn.textContent = originalText;

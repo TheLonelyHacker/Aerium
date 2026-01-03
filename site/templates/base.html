@@ -29,6 +29,7 @@
       </div>
 
       <div class="nav-center">
+        <a href="/dashboard">📋 Tableau de bord</a>
         <a href="/">🏠 Vue d'ensemble</a>
         <a href="/live">📊 Live</a>
         <a href="/settings">⚙️ Paramètres</a>
@@ -39,6 +40,10 @@
       <div class="nav-right">
         <button id="theme-toggle-btn" class="theme-toggle" title="Basculer le thème">
           <span class="theme-icon">🌙</span>
+        </button>
+        <button id="alerts-btn" class="nav-alerts-btn" title="Alertes">
+          🔔
+          <span id="alert-badge" class="alert-badge" style="display: none;">0</span>
         </button>
         <div class="nav-status" id="nav-analysis">
           <span class="dot"></span>
@@ -53,12 +58,23 @@
         </div>
         {% if session.get('username') %}
         <div class="nav-user">
-          <span class="nav-username">👤 {{ session.get('username') }}</span>
+          <a href="{{ url_for('dashboard') }}" class="nav-profile-link" title="Tableau de bord">👤 {{ session.get('username') }}</a>
           <a href="{{ url_for('logout') }}" class="nav-logout" title="Déconnexion">🚪</a>
         </div>
         {% endif %}
       </div>
     </nav>
+
+    <!-- Alerts Panel -->
+    <div id="alerts-panel" class="alerts-panel">
+      <div class="alerts-panel-header">
+        <h3>📢 Alertes Récentes</h3>
+        <button id="close-alerts-btn" class="close-btn">✕</button>
+      </div>
+      <div id="alerts-list" class="alerts-list">
+        <p class="no-alerts">Aucune alerte pour le moment</p>
+      </div>
+    </div>
 
     <main class="container">{% block content %}{% endblock %}</main>
     {% block scripts %}{% endblock %}
@@ -67,6 +83,7 @@
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script defer src="{{ url_for('static', filename='js/websocket.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/alerts.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/settings.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/analytics.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/live.js') }}"></script>
