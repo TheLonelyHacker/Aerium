@@ -1,11 +1,7 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulateur CO₂ - Morpheus</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
+{% extends "base.html" %}
+{% block content %}
+<script>window.IS_SIMULATOR_PAGE = true;</script>
+<style>
         * {
             box-sizing: border-box;
         }
@@ -321,6 +317,28 @@
             transform: translateY(0);
         }
 
+        .pause-btn {
+            background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+            color: #0b0d12;
+            border: none;
+            padding: 12px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
+        }
+
+        .pause-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(249, 115, 22, 0.45);
+        }
+
+        .pause-btn:active {
+            transform: translateY(0);
+        }
+
         /* Status Display Grid */
         .status-grid {
             display: grid;
@@ -343,7 +361,33 @@
             box-shadow: 0 6px 25px rgba(102, 126, 234, 0.2);
             transform: translateY(-3px);
         }
+        .scenario-card.active {
+            border-color: #4ade80;
+            box-shadow: 0 0 25px rgba(74, 222, 128, 0.4);
+            background: linear-gradient(135deg, #1e3f2e 0%, #2a5a3f 100%);
+        }
 
+        .scenario-card.active::before {
+            content: "✓ ACTIF";
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            left: 10px;
+            height: auto;
+            background: #4ade80;
+            color: #0b0d12;
+            padding: 3px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.5);
+            z-index: 10;
+        }
+
+        .scenario-card {
+            position: relative;
+        }
         .status-label {
             color: #a0a0c0;
             font-size: 0.85em;
@@ -359,6 +403,13 @@
             font-weight: 700;
             margin: 0;
             line-height: 1;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .status-card:first-child .status-value {
+            font-size: 1.4em;
+            line-height: 1.2;
         }
 
         .status-unit {
@@ -434,6 +485,29 @@
             flex-grow: 1;
         }
 
+        .duration-label {
+            color: #9ca3af;
+            font-size: 0.8rem;
+            margin-bottom: 6px;
+            display: block;
+            font-weight: 500;
+        }
+
+        .duration-label .help-icon {
+            display: inline-block;
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            width: 16px;
+            height: 16px;
+            line-height: 16px;
+            text-align: center;
+            border-radius: 50%;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-left: 4px;
+            cursor: help;
+        }
+
         .scenario-input {
             background: rgba(0, 0, 0, 0.2);
             border: 1px solid rgba(102, 126, 234, 0.3);
@@ -443,6 +517,7 @@
             margin-bottom: 12px;
             font-size: 0.95em;
             transition: all 0.2s ease;
+            width: 100%;
         }
 
         .scenario-input:focus {
@@ -651,27 +726,37 @@
                 padding: 15px 10px;
             }
         }
+
+        /* Simulator live card overrides to avoid oversized icon and preserve layout */
+        .sim-live-card .value-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #sim-trend {
+            width: 42px;
+            height: 42px;
+        }
+
+        #sim-trend path {
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .sim-live-card .chart-wrapper {
+            min-height: 260px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sim-live-card .value {
+            font-size: 2.4rem;
+            line-height: 1.1;
+        }
+
     </style>
-</head>
-<body>
-    <!-- Navigation -->
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="/" class="nav-logo">
-                🌙 Morpheus
-            </a>
-            <ul class="nav-menu">
-                <li><a href="/live">📊 En Direct</a></li>
-                <li><a href="/dashboard">📈 Tableau de Bord</a></li>
-                <li><a href="/report">📋 Rapports</a></li>
-                <li><a href="/settings">⚙️ Paramètres</a></li>
-                {% if is_admin %}
-                <li><a href="/admin" class="nav-admin">🔐 Admin</a></li>
-                {% endif %}
-                <li><a href="/logout">🚪 Déconnexion</a></li>
-            </ul>
-        </div>
-    </nav>
 
     <div class="simulator-container">
         <!-- Header -->
@@ -687,7 +772,10 @@
         <div class="status-section">
             <div class="section-title">
                 <h2>État Actuel</h2>
-                <button class="refresh-btn" onclick="loadSimulatorStatus()">🔄 Actualiser</button>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="pause-btn" id="sim-pause-btn">⏸ Mettre en pause</button>
+                    <button class="refresh-btn">🔄 Actualiser</button>
+                </div>
             </div>
 
             <div class="status-grid">
@@ -708,49 +796,91 @@
                     <div class="status-value" id="sim-humidity">45.0<span class="status-unit">%</span></div>
                 </div>
             </div>
+
+                        <!-- Live-like CO₂ view reused from Live page -->
+                        <section class="card sim-live-card" style="margin-top: 24px; background: var(--card); border: 1px solid var(--border-light);">
+                            <h3 style="margin-top: 0; margin-bottom: 12px; color: var(--text);">Flux simulé en direct</h3>
+                            <div class="value-wrapper">
+                                <span id="sim-value" class="value">---</span>
+                                <svg id="sim-trend" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path id="sim-trend-path" d="M5 12 H19 M14 7 L19 12 L14 17" />
+                                </svg>
+                            </div>
+
+                            <div id="sim-quality" class="quality">---</div>
+                            <div id="sim-trend-info" style="margin-top: 8px; font-size: 0.9rem; color: var(--muted);">---</div>
+
+                            <div class="chart-wrapper" style="margin-top: 16px;">
+                                <canvas id="sim-chart"></canvas>
+                                <div id="sim-paused-overlay" class="paused-overlay">
+                                    <div class="paused-box">⏸ Analyse en pause</div>
+                                </div>
+                            </div>
+
+                            <div
+                                style="
+                                    display: flex;
+                                    justify-content: space-between;
+                                    align-items: center;
+                                    margin-top: 10px;
+                                    font-size: 0.85rem;
+                                    color: var(--muted);
+                                    flex-wrap: wrap;
+                                    gap: 8px;
+                                "
+                            >
+                                <span id="sim-time-range">Simulation en direct</span>
+                                <span id="sim-data-points">Points: 0</span>
+                            </div>
+                        </section>
         </div>
 
         <!-- Scenarios Section -->
         <div class="scenarios-section">
             <h2 style="margin-bottom: 30px; font-size: 1.6em; color: #e0e0e0; font-weight: 600;">Sélectionner un Scénario</h2>
             <div class="scenarios-grid">
-                <div class="scenario-card">
+                <div class="scenario-card" data-scenario="normal">
                     <div class="scenario-icon">🏢</div>
                     <h4>Normal</h4>
                     <p>Fonctionnement normal avec variations mineures. CO₂ stable autour de 600 ppm avec oscillations naturelles.</p>
-                    <input type="number" id="normal-duration" class="scenario-input" value="0" placeholder="Durée (min, 0=infini)" min="0" max="1440">
+                    <label class="duration-label">Durée (minutes) <span class="help-icon" title="0 = infini jusqu'au changement manuel. Sinon, le scénario s'arrête automatiquement après cette durée.">?</span></label>
+                    <input type="number" id="normal-duration" class="scenario-input" value="0" placeholder="0 = infini" min="0" max="1440">
                     <button class="scenario-btn" onclick="setSimulatorScenario('normal')">Activer</button>
                 </div>
 
-                <div class="scenario-card">
+                <div class="scenario-card" data-scenario="office_hours">
                     <div class="scenario-icon">👥</div>
                     <h4>Heures de Bureau</h4>
                     <p>Personnes présentes, CO₂ monte progressivement. Simule une augmentation graduelle due à l'occupation.</p>
-                    <input type="number" id="office_hours-duration" class="scenario-input" value="0" placeholder="Durée (min, 0=infini)" min="0" max="1440">
+                    <label class="duration-label">Durée (minutes) <span class="help-icon" title="0 = infini jusqu'au changement manuel. Sinon, le scénario s'arrête automatiquement après cette durée.">?</span></label>
+                    <input type="number" id="office_hours-duration" class="scenario-input" value="0" placeholder="0 = infini" min="0" max="1440">
                     <button class="scenario-btn" onclick="setSimulatorScenario('office_hours')">Activer</button>
                 </div>
 
-                <div class="scenario-card">
+                <div class="scenario-card" data-scenario="sleep">
                     <div class="scenario-icon">🌙</div>
                     <h4>Sommeil</h4>
                     <p>Peu ou pas de personnes présentes, CO₂ très stable et bas. Conditions minimales d'occupation.</p>
-                    <input type="number" id="sleep-duration" class="scenario-input" value="0" placeholder="Durée (min, 0=infini)" min="0" max="1440">
+                    <label class="duration-label">Durée (minutes) <span class="help-icon" title="0 = infini jusqu'au changement manuel. Sinon, le scénario s'arrête automatiquement après cette durée.">?</span></label>
+                    <input type="number" id="sleep-duration" class="scenario-input" value="0" placeholder="0 = infini" min="0" max="1440">
                     <button class="scenario-btn" onclick="setSimulatorScenario('sleep')">Activer</button>
                 </div>
 
-                <div class="scenario-card">
+                <div class="scenario-card" data-scenario="ventilation">
                     <div class="scenario-icon">💨</div>
                     <h4>Ventilation Active</h4>
                     <p>Système de ventilation en cours de fonctionnement. CO₂ baisse rapidement. Simule un renouvellement d'air efficace.</p>
-                    <input type="number" id="ventilation_active-duration" class="scenario-input" value="0" placeholder="Durée (min, 0=infini)" min="0" max="1440">
-                    <button class="scenario-btn" onclick="setSimulatorScenario('ventilation_active')">Activer</button>
+                    <label class="duration-label">Durée (minutes) <span class="help-icon" title="0 = infini jusqu'au changement manuel. Sinon, le scénario s'arrête automatiquement après cette durée.">?</span></label>
+                    <input type="number" id="ventilation-duration" class="scenario-input" value="0" placeholder="0 = infini" min="0" max="1440">
+                    <button class="scenario-btn" onclick="setSimulatorScenario('ventilation')">Activer</button>
                 </div>
 
-                <div class="scenario-card">
+                <div class="scenario-card" data-scenario="anomaly">
                     <div class="scenario-icon">⚠️</div>
                     <h4>Anomalie Capteur</h4>
                     <p>Simuler une anomalie de capteur. Pics aléatoires, dérive progressive ou interruptions de données.</p>
-                    <input type="number" id="anomaly-duration" class="scenario-input" value="0" placeholder="Durée (min, 0=infini)" min="0" max="1440">
+                    <label class="duration-label">Durée (minutes) <span class="help-icon" title="0 = infini jusqu'au changement manuel. Sinon, le scénario s'arrête automatiquement après cette durée.">?</span></label>
+                    <input type="number" id="anomaly-duration" class="scenario-input" value="0" placeholder="0 = infini" min="0" max="1440">
                     <button class="scenario-btn danger" onclick="setSimulatorScenario('anomaly')">Activer</button>
                 </div>
             </div>
@@ -761,10 +891,10 @@
             <h3>ℹ️ Comment Utiliser le Simulateur</h3>
             <ul>
                 <li><strong>Scénarios:</strong> Choisissez un scénario pour simuler différentes conditions d'occupation</li>
-                <li><strong>Durée:</strong> Définissez la durée en minutes (0 = infini jusqu'au changement manuel)</li>
-                <li><strong>Données en temps réel:</strong> Les données simulées sont transmises via WebSocket</li>
-                <li><strong>Persistance:</strong> Toutes les mesures sont enregistrées dans la base de données</li>
-                <li><strong>Intégration:</strong> Visualisez les données sur la page "En Direct" ou au "Tableau de Bord"</li>
+                <li><strong>Durée:</strong> L'input de durée définit combien de temps le scénario s'exécute avant de revenir automatiquement au mode "Normal". 0 = infini (reste actif jusqu'au changement manuel)</li>
+                <li><strong>Données en temps réel:</strong> Les données simulées sont mises à jour chaque seconde via l'API dédiée</li>
+                <li><strong>Isolation:</strong> Les mesures du simulateur ne polluent pas l'historique en direct</li>
+                <li><strong>Intégration:</strong> Visualisez les données directement dans cette page sans affecter le live</li>
                 <li><strong>Variables réalistes:</strong> Chaque scénario génère CO₂, température et humidité cohérents</li>
             </ul>
         </div>
@@ -773,92 +903,11 @@
         <div class="reset-section">
             <h3>🔄 Réinitialiser le Simulateur</h3>
             <p>Revenir à l'état initial avec une valeur CO₂ personnalisée</p>
-            <button class="reset-btn" onclick="resetSimulator()">Réinitialiser</button>
+            <button class="reset-btn">Réinitialiser</button>
         </div>
     </div>
 
-    <script>
-        // Auto-load status on page load
-        window.addEventListener('load', () => {
-            loadSimulatorStatus();
-            // Auto-refresh every 2 seconds
-            setInterval(loadSimulatorStatus, 2000);
-        });
-
-        function showMessage(message, type = 'success') {
-            const statusDiv = document.getElementById('statusMessage');
-            statusDiv.textContent = message;
-            statusDiv.className = 'status-message ' + type;
-            setTimeout(() => {
-                statusDiv.className = 'status-message';
-            }, 4000);
-        }
-
-        async function loadSimulatorStatus() {
-            try {
-                const response = await fetch('/api/simulator/status');
-                const data = await response.json();
-                
-                if (data.success) {
-                    const sim = data.simulator;
-                    document.getElementById('sim-scenario').textContent = sim.scenario.toUpperCase();
-                    document.getElementById('sim-co2').innerHTML = Math.round(sim.co2) + '<span class="status-unit">ppm</span>';
-                    document.getElementById('sim-temp').innerHTML = sim.temperature.toFixed(1) + '<span class="status-unit">°C</span>';
-                    document.getElementById('sim-humidity').innerHTML = sim.humidity.toFixed(1) + '<span class="status-unit">%</span>';
-                }
-            } catch (error) {
-                console.error('Error loading simulator status:', error);
-            }
-        }
-
-        async function setSimulatorScenario(scenario) {
-            const durationInput = document.getElementById(scenario + '-duration');
-            const duration = parseInt(durationInput?.value || 0);
-
-            try {
-                const response = await fetch(`/api/simulator/scenario/${scenario}`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({duration: duration * 60})
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    showMessage(`✓ Scénario activé: ${scenario}`, 'success');
-                    setTimeout(loadSimulatorStatus, 300);
-                } else {
-                    showMessage('✗ Erreur: ' + data.error, 'error');
-                }
-            } catch (error) {
-                showMessage('Erreur: ' + error, 'error');
-            }
-        }
-
-        async function resetSimulator() {
-            const baseCO2 = prompt('Valeur CO2 initiale (ppm):', '600');
-            if (baseCO2 && !isNaN(baseCO2)) {
-                try {
-                    const response = await fetch('/api/simulator/reset', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            base_co2: parseInt(baseCO2),
-                            scenario: 'normal'
-                        })
-                    });
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        showMessage('✓ Simulateur réinitialisé', 'success');
-                        setTimeout(loadSimulatorStatus, 300);
-                    } else {
-                        showMessage('✗ Erreur: ' + data.error, 'error');
-                    }
-                } catch (error) {
-                    showMessage('Erreur: ' + error, 'error');
-                }
-            }
-        }
-    </script>
-</body>
-</html>
+{% endblock %}
+{% block scripts %}
+<script defer src="{{ url_for('static', filename='js/simulator.js') }}"></script>
+{% endblock %}

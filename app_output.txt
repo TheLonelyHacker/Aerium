@@ -1,0 +1,7 @@
+﻿python : C:\Users\Zylow\AppData\Local\Programs\Python\Python313\python.exe: can't open file 'C:\\Users\\Zylow\\Documents\\NSI\\PROJECT\\Morpheus\\app.py': [Errno 2] No such file or directory
+At line:1 char:33
++ $env:PYTHONIOENCODING="utf-8" ; python app.py 2>&1 | Out-File -FilePa ...
++                                 ~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\Zylow\...le or directory:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

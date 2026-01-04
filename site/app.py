@@ -32,7 +32,7 @@ from functools import wraps
 import csv
 import secrets
 
-from fake_co2 import generate_co2, generate_co2_data, save_reading, reset_state, set_scenario, get_scenario_info
+from fake_co2 import generate_co2, generate_co2_data, save_reading, reset_state, set_scenario, get_scenario_info, set_paused
 from database import cleanup_old_data
 from advanced_features import (AdvancedAnalytics, CollaborationManager, 
                                PerformanceOptimizer, VisualizationEngine)
@@ -191,11 +191,14 @@ print("=" * 50)
 DEFAULT_SETTINGS = {
     "analysis_running": True,
     "good_threshold": 800,
+    "warning_threshold": 1000,
     "bad_threshold": 1200,
+    "critical_threshold": 1200,
     "alert_threshold": 1400,
     "realistic_mode": True,
     "update_speed": 1,
     "overview_update_speed": 5,
+    "simulate_live": False,
 }
 
 def save_settings(data):
@@ -1408,25 +1411,77 @@ def history_range(range):
     return jsonify([dict(r) for r in rows])
 
 # 3. API ROUTES
+def build_live_payload(settings=None):
+    """Centralized live-reading builder (used by HTTP and WebSocket)."""
+    settings = settings or load_settings()
+
+    if not settings.get("analysis_running", True):
+        return settings, {
+            "analysis_running": False,
+            "ppm": None,
+            "reason": "paused",
+            "timestamp": datetime.now(UTC).isoformat()
+        }
+
+    if not settings.get("simulate_live", False):
+        return settings, {
+            "analysis_running": False,
+            "ppm": None,
+            "reason": "no_sensor",
+            "timestamp": datetime.now(UTC).isoformat()
+        }
+
+    data = generate_co2_data(settings.get("realistic_mode", True))
+    ppm = data["co2"]
+    temp = data.get("temp")
+    humidity = data.get("humidity")
+
+    # Persist as live source
+    save_reading(ppm, temp, humidity, source="live", persist=True)
+
+    return settings, {
+        "analysis_running": True,
+        "ppm": ppm,
+        "temp": temp,
+        "humidity": humidity,
+        "timestamp": datetime.now(UTC).isoformat()
+    }
+
+
+@app.route("/api/live/latest")
+def api_live_latest():
+    _, payload = build_live_payload()
+    resp = make_response(jsonify(payload))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route("/api/latest")
 def api_latest():
+    # Backward-compatible alias
+    return api_live_latest()
+
+
+@app.route("/api/simulator/latest")
+@limiter.exempt
+def api_simulator_latest():
+    """Simulator-only feed that stays independent from the live pipeline."""
     settings = load_settings()
 
-    if not settings["analysis_running"]:
-        resp = make_response(jsonify({
-            "analysis_running": False,
-            "ppm": None
-        }))
-        resp.headers["Cache-Control"] = "no-store"
-        return resp
+    data = generate_co2_data(settings.get("realistic_mode", True))
+    ppm = data["co2"]
+    temp = data.get("temp")
+    humidity = data.get("humidity")
 
-    ppm = generate_co2(settings["realistic_mode"])
-    save_reading(ppm)
+    # Do not persist simulator traffic into live history
+    save_reading(ppm, temp, humidity, source="sim", persist=False)
 
     resp = make_response(jsonify({
         "analysis_running": True,
         "ppm": ppm,
-        "timestamp": datetime.utcnow().isoformat()
+        "temp": temp,
+        "humidity": humidity,
+        "timestamp": datetime.now(UTC).isoformat()
     }))
     resp.headers["Cache-Control"] = "no-store"
     return resp
@@ -1460,8 +1515,21 @@ def get_today_history():
 @app.route("/api/settings", methods=["GET", "POST", "DELETE"])
 def api_settings():
     if request.method == "POST":
-        save_settings(request.json)
-        return jsonify({"status": "ok"})
+        data = request.json
+        
+        # Map warning_threshold to bad_threshold for backend compatibility
+        if 'warning_threshold' in data and 'bad_threshold' not in data:
+            data['bad_threshold'] = data['warning_threshold']
+        if 'critical_threshold' in data and 'alert_threshold' not in data:
+            data['alert_threshold'] = data['critical_threshold']
+        
+        save_settings(data)
+        
+        # Broadcast updated settings to all WebSocket clients
+        saved_settings = load_settings()
+        socketio.emit('settings_update', saved_settings)
+        
+        return jsonify({"status": "ok", "settings": saved_settings})
 
     if request.method == "DELETE":
         db = get_db()
@@ -1474,7 +1542,16 @@ def api_settings():
         
         return jsonify(DEFAULT_SETTINGS)
 
-    return jsonify(load_settings())
+    # GET: Return settings with frontend-compatible field names
+    settings = load_settings()
+    
+    # Map backend fields to frontend expected names
+    if 'bad_threshold' in settings and 'warning_threshold' not in settings:
+        settings['warning_threshold'] = settings['bad_threshold']
+    if 'alert_threshold' in settings and 'critical_threshold' not in settings:
+        settings['critical_threshold'] = settings['alert_threshold']
+    
+    return jsonify(settings)
 
 @app.route("/api/history/latest/<int:limit>")
 def api_history_latest(limit):
@@ -1684,11 +1761,9 @@ def set_simulation_scenario(scenario_name):
 
 
 @app.route("/api/simulator/status", methods=['GET'])
+@limiter.exempt
 def get_simulator_status():
     """Get current simulator status"""
-    if not is_admin(session.get('user_id')):
-        return jsonify({'success': False, 'error': 'Admin only'}), 403
-    
     info = get_scenario_info()
     return jsonify({
         'success': True,
@@ -1698,7 +1773,32 @@ def get_simulator_status():
             'temperature': info['temp'],
             'humidity': info['humidity'],
             'timer': info['timer'],
-            'duration': info['duration']
+            'duration': info['duration'],
+            'paused': info.get('paused', False)
+        }
+    })
+
+
+@app.route("/api/simulator/pause", methods=['POST'])
+def pause_simulator():
+    """Pause or resume the simulator progression."""
+    desired = False
+    if request.json is not None:
+        desired = bool(request.json.get('paused', False))
+
+    set_paused(desired)
+    info = get_scenario_info()
+    return jsonify({
+        'success': True,
+        'paused': desired,
+        'simulator': {
+            'scenario': info['scenario'],
+            'co2': info['co2'],
+            'temperature': info['temp'],
+            'humidity': info['humidity'],
+            'timer': info['timer'],
+            'duration': info['duration'],
+            'paused': info.get('paused', desired)
         }
     })
 
@@ -1747,24 +1847,8 @@ def handle_disconnect():
 @socketio.on('request_data')
 def handle_request_data():
     """Handle request for latest CO₂ data"""
-    settings = load_settings()
-    
-    if not settings["analysis_running"]:
-        emit('co2_update', {
-            'analysis_running': False,
-            'ppm': None,
-            'timestamp': datetime.now(UTC).isoformat()
-        })
-        return
-    
-    ppm = generate_co2(settings["realistic_mode"])
-    save_reading(ppm)
-    
-    emit('co2_update', {
-        'analysis_running': True,
-        'ppm': ppm,
-            'timestamp': datetime.now(UTC).isoformat()
-    })
+    _, payload = build_live_payload()
+    emit('co2_update', payload)
 
 @socketio.on('settings_change')
 def handle_settings_change(data):
@@ -1778,51 +1862,31 @@ def broadcast_co2_loop():
     global broadcast_running
     broadcast_running = True
     last_ppm = None
-    last_analysis_state = None
+    last_state = None  # 'running', 'paused', 'no_sensor'
     
     while broadcast_running:
         settings = load_settings()
-        
-        if settings["analysis_running"]:
-            # Generate enhanced data with temperature and humidity
-            data = generate_co2_data(settings["realistic_mode"])
-            ppm = data['co2']
-            temp = data['temp']
-            humidity = data['humidity']
-            save_reading(ppm, temp, humidity)
-            
-            # Broadcast every time (more responsive) or if state changed
-            if last_ppm is None or last_analysis_state != True:
-                socketio.emit('co2_update', {
-                    'analysis_running': True,
-                    'ppm': ppm,
-                    'temp': temp,
-                    'humidity': humidity,
-                    'timestamp': datetime.now(UTC).isoformat()
-                }, to=None)
-                last_ppm = ppm
-                last_analysis_state = True
-            elif abs(ppm - last_ppm) >= 2:  # Reduced threshold from 5 to 2 ppm
-                socketio.emit('co2_update', {
-                    'analysis_running': True,
-                    'ppm': ppm,
-                    'temp': temp,
-                    'humidity': humidity,
-                    'timestamp': datetime.now(UTC).isoformat()
-                }, to=None)
-                last_ppm = ppm
-        else:
-            # Only broadcast state change once
-            if last_analysis_state != False:
+        update_delay = settings.get("update_speed", 0.5)
+
+        settings, payload = build_live_payload(settings)
+        current_state = "running" if payload.get("analysis_running") else payload.get("reason", "paused")
+
+        if not payload.get("analysis_running"):
+            if last_state != current_state:
                 socketio.emit('co2_update', {
                     'analysis_running': False,
+                    'reason': payload.get('reason'),
                     'ppm': None,
                     'timestamp': datetime.now(UTC).isoformat()
                 }, to=None)
-                last_analysis_state = False
-        
-        # Faster update speed: 500ms instead of 1s
-        update_delay = settings.get("update_speed", 0.5)
+                last_state = current_state
+            time.sleep(update_delay)
+            continue
+
+        socketio.emit('co2_update', payload, to=None)
+        last_ppm = payload.get('ppm')
+        last_state = current_state
+
         time.sleep(update_delay)
 
 def start_broadcast_thread():
@@ -1844,5 +1908,54 @@ def stop_broadcast_thread():
 
 
 if __name__ == "__main__":
+    # Database migrations
+    try:
+        db = get_db()
+        
+        # Add temperature and humidity columns to co2_readings if missing
+        try:
+            db.execute("ALTER TABLE co2_readings ADD COLUMN temperature REAL")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE co2_readings ADD COLUMN humidity REAL")
+        except Exception:
+            pass
+        
+        # Migrate audit_logs table to add missing columns
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN user_id INTEGER")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN username TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN entity_type TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN entity_id TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN details TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN status TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN severity TEXT")
+        except Exception:
+            pass
+        
+        db.commit()
+        db.close()
+    except Exception as e:
+        print(f"Migration error: {e}")
+
     start_broadcast_thread()
     socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

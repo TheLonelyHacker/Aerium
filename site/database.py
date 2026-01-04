@@ -26,9 +26,24 @@ def init_db():
         CREATE TABLE IF NOT EXISTS co2_readings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            ppm INTEGER NOT NULL
+            ppm INTEGER NOT NULL,
+            temperature REAL,
+            humidity REAL,
+            source TEXT DEFAULT 'live'
         )
     """)
+
+    # Ensure newer columns exist when migrating older databases
+    for column_def in [
+        ("temperature", "REAL"),
+        ("humidity", "REAL"),
+        ("source", "TEXT DEFAULT 'live'")
+    ]:
+        try:
+            cur.execute(f"ALTER TABLE co2_readings ADD COLUMN {column_def[0]} {column_def[1]}")
+        except Exception:
+            # Column already exists
+            pass
     
     # Create index on timestamp for faster queries
     cur.execute("""
@@ -167,15 +182,23 @@ def init_db():
     cur.execute("""
         CREATE TABLE IF NOT EXISTS audit_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            admin_id INTEGER NOT NULL,
+            admin_id INTEGER,
+            user_id INTEGER,
+            username TEXT,
             action TEXT NOT NULL,
+            entity_type TEXT,
+            entity_id TEXT,
             target_type TEXT,
             target_id INTEGER,
+            details TEXT,
             old_value TEXT,
             new_value TEXT,
             ip_address TEXT,
+            status TEXT,
+            severity TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(admin_id) REFERENCES users(id) ON DELETE CASCADE
+            FOREIGN KEY(admin_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
     

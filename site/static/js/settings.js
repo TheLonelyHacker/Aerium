@@ -9,9 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   if (!toggle || !goodSlider) return;
 
-  const lightModeToggle = document.getElementById("toggle-light-mode");
   const audioAlertsToggle = document.getElementById("toggle-audio-alerts");
-  const themeHint = document.getElementById("theme-hint");
 
   const goodValue = document.getElementById("good-value");
   const warningValue = document.getElementById("warning-value");
@@ -38,20 +36,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const MIN = 400;
   const MAX = 2000;
   const STEP = 50;
-
-  /* =========================
-     THEME MANAGEMENT
-  ========================= */
-  if (lightModeToggle) {
-    const isLight = localStorage.getItem("theme") === "light";
-    lightModeToggle.checked = isLight;
-    themeHint.textContent = `Actuellement: Mode ${isLight ? "clair" : "sombre"}`;
-
-    lightModeToggle.addEventListener("change", () => {
-      applyTheme(lightModeToggle.checked);
-      themeHint.textContent = `Actuellement: Mode ${lightModeToggle.checked ? "clair" : "sombre"}`;
-    });
-  }
 
   /* =========================
      AUDIO ALERTS TOGGLE
@@ -135,37 +119,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ========================================
-  // SPRING ANIMATION
+  // SNAP TO NEAREST VALUE (WITH CSS TRANSITION)
   // ========================================
-  function springTo(slider, target, onDone) {
-    if (isSnapping) return;
-
-    isSnapping = true;
-
-    const start = +slider.value;
-    const diff = target - start;
-    const duration = 220;
-    const startTime = performance.now();
-
-    function animate(time) {
-      const t = Math.min((time - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-
-      slider.value = Math.round(start + diff * eased);
-      updateVisualization();
-
-      if (t < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        slider.value = target;
-        isSnapping = false;
-        updateLiveValues();
-        updateVisualization();
-        if (onDone) onDone();
-      }
-    }
-
-    requestAnimationFrame(animate);
+  function snapSliderValue(slider, target) {
+    // Add CSS transition for smooth movement
+    slider.style.transition = 'opacity 0.2s ease';
+    slider.value = target;
+    // Trigger CSS transition for visual smoothness
+    requestAnimationFrame(() => {
+      slider.style.transition = '';
+    });
   }
 
   // ========================================
@@ -191,12 +154,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // ========================================
   function snapSlider(slider) {
     const snapped = snap(+slider.value);
-    springTo(slider, snapped, () => {
-      slider.value = snapped;
-      syncThresholds();
-      updateLiveValues();
-      updateVisualization();
-    });
+    snapSliderValue(slider, snapped);
+    syncThresholds();
+    updateLiveValues();
+    updateVisualization();
   }
 
   goodSlider.addEventListener("change", () => snapSlider(goodSlider));
@@ -250,8 +211,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // ========================================
   async function loadSettings() {
     try {
+      console.log('📋 Loading settings from /api/settings...');
       const res = await fetch("/api/settings");
       const settings = await res.json();
+      console.log('📋 Settings received:', settings);
 
       toggle.checked = settings.analysis_running !== false;
       goodSlider.value = settings.good_threshold || 800;
@@ -262,22 +225,35 @@ document.addEventListener("DOMContentLoaded", () => {
       updateSpeed.value = settings.update_speed || 1;
       overviewUpdateSpeed.value = settings.overview_update_speed || 5;
 
+      // Update speed displays
+      speedValue.textContent = `${updateSpeed.value} seconde${updateSpeed.value != 1 ? "s" : ""}`;
+      overviewSpeedValue.textContent = `${overviewUpdateSpeed.value} seconde${overviewUpdateSpeed.value != 1 ? "s" : ""}`;
+
+      // Ensure thresholds are properly synced and validated
       syncThresholds();
       updateLiveValues();
+      console.log('✓ Values updated. Good:', goodSlider.value, 'Warning:', warningSlider.value, 'Critical:', criticalSlider.value);
       
-      // Force visualization after browser renders
+      // Force visualization update - multiple calls to ensure proper rendering
+      updateVisualization();
+      console.log('✓ Visualization updated');
       requestAnimationFrame(() => {
         updateVisualization();
       });
     } catch (e) {
-      console.error("Load settings error:", e);
+      console.error("❌ Load settings error:", e);
       // Use defaults
       toggle.checked = true;
       goodSlider.value = 800;
       warningSlider.value = 1000;
       criticalSlider.value = 1200;
+      speedValue.textContent = "1 seconde";
+      overviewSpeedValue.textContent = "5 secondes";
+      syncThresholds();
       updateLiveValues();
       
+      // Ensure visualization is updated with defaults
+      updateVisualization();
       requestAnimationFrame(() => {
         updateVisualization();
       });
@@ -350,20 +326,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Save thresholds button (alternative)
-  if (saveThresholdsBtn) {
-    saveThresholdsBtn.addEventListener("click", () => {
-      saveBtn.click();
-    });
-  }
-
-  // Save thresholds button (alternative)
-  if (saveThresholdsBtn) {
-    saveThresholdsBtn.addEventListener("click", () => {
-      saveBtn.click();
-    });
-  }
-
   // ========================================
   // RESET SETTINGS
   // ========================================
@@ -419,4 +381,5 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Load settings on page load
-  loadSettings();});
+  loadSettings();
+});

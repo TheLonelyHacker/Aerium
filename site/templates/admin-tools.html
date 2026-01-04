@@ -1879,10 +1879,16 @@ async function cleanupBackups() {
 
 // Initialize tabs on page load
 document.addEventListener('DOMContentLoaded', function() {
+    // Load data for all tabs
+    loadAuditLogs();
+    loadSessions();
+    loadLoginHistory();
+    loadRetentionPolicies();
+    loadSystemStats();
+    loadBackups();
     loadUsers();
     loadAnalytics();
     loadMaintenanceStatus();
-    loadSimulatorStatus();
 });
 </script>
 {% endblock %}

@@ -182,7 +182,8 @@ async function loadSharedSettings() {
    Live Data API
 ──────────────────────────────────────────────────────────────────────────── */
 async function fetchLatestData() {
-  const res = await fetch("/api/latest", {
+  const endpoint = "/api/live/latest";
+  const res = await fetch(endpoint, {
     cache: "no-store",
   });
   return await res.json();

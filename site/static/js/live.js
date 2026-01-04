@@ -11,6 +11,8 @@ let lastPPM = null;
 let lastCo2Timestamp = null; // used to dedupe rapid duplicate updates
 let lastQualityPPM = null;
 let lastRotation = 0;
+let lastTemp = null;
+let lastHumidity = null;
 let pollingDelay = POLLING_INTERVAL;
 let pollInterval = null;
 let analysisRunningLocal = true;
@@ -39,6 +41,11 @@ const smoothToggle = document.getElementById("toggle-smooth");
 const outlierToggle = document.getElementById("toggle-outliers");
 
 const isLivePage = !!(valueEl && qualityEl && chartCanvas);
+const isSimulatorPage = window.IS_SIMULATOR_PAGE === true || window.location.pathname.includes("/simulator");
+
+if (isSimulatorPage) {
+  useWebSocket = false; // keep simulator independent from the live WebSocket feed
+}
 
 // Smooth & Outlier toggles
 if (isLivePage) {
@@ -261,20 +268,56 @@ function createChart() {
             return v == null ? "#9ca3af" : ppmColor(v);
           },
         },
+        {
+          label: "Temp (°C)",
+          data: [],
+          borderWidth: 2,
+          tension: 0.3,
+          borderColor: "#60a5fa",
+          backgroundColor: "rgba(96,165,250,0.08)",
+          yAxisID: 'y1',
+          pointRadius: 2,
+          pointHoverRadius: 4,
+        },
+        {
+          label: "Humidité (%)",
+          data: [],
+          borderWidth: 2,
+          tension: 0.3,
+          borderColor: "#f472b6",
+          backgroundColor: "rgba(244,114,182,0.08)",
+          yAxisID: 'y2',
+          pointRadius: 2,
+          pointHoverRadius: 4,
+        },
       ],
     },
     options: {
       responsive: true,
       animation: { duration: 0 },
       plugins: {
-        legend: { display: false },
+        legend: { display: true },
       },
       scales: {
         y: {
-          min: 400,
+          min: 200,
           max: 2000,
           animation: { duration: 0 },
           grid: { color: "rgba(255,255,255,0.06)" },
+        },
+        y1: {
+          position: 'right',
+          min: 10,
+          max: 40,
+          grid: { display: false },
+          ticks: { color: '#60a5fa' },
+        },
+        y2: {
+          position: 'right',
+          min: 0,
+          max: 100,
+          grid: { display: false },
+          ticks: { color: '#f472b6' },
         },
         x: {
           animation: { duration: 0 },
@@ -291,7 +334,7 @@ function createChart() {
 /* ─────────────────────────────────────────────────────────────────────────── 
    Chart Updates
 ──────────────────────────────────────────────────────────────────────────── */
-function updateChart(ppm, timestamp) {
+function updateChart(ppm, timestamp, temp = null, humidity = null) {
   if (!chart) return;
 
   // Prefer server-provided timestamp for consistent labels across views
@@ -301,11 +344,13 @@ function updateChart(ppm, timestamp) {
 
   chart.data.labels.push(timeLabel);
   chart.data.datasets[0].data.push(ppm);
+  if (chart.data.datasets[1]) chart.data.datasets[1].data.push(temp);
+  if (chart.data.datasets[2]) chart.data.datasets[2].data.push(humidity);
 
   // Update chart without animation - our custom plugin handles the animation
   chart.update('none');
 
-  // Start animation for the newest point and line
+  // Start animation for the newest point and line (CO2 only)
   const newPointIndex = chart.data.labels.length - 1;
   animatingPointIndex = newPointIndex;
   pointAnimationProgress = 0;
@@ -337,6 +382,8 @@ function updateChart(ppm, timestamp) {
   if (chart.data.labels.length > MAX_POINTS) {
     chart.data.labels.shift();
     chart.data.datasets[0].data.shift();
+    if (chart.data.datasets[1]) chart.data.datasets[1].data.shift();
+    if (chart.data.datasets[2]) chart.data.datasets[2].data.shift();
     chart.update('none');
   }
 }
@@ -347,14 +394,15 @@ function updateChart(ppm, timestamp) {
 ================================================================================
 */
 
-function showPausedOverlay() {
+function showPausedOverlay(reason = null) {
   pausedOverlay?.classList.add("active");
   valueEl.textContent = "⏸";
   valueEl.style.color = "#9ca3af";
   trendEl.textContent = "";
-  trendInfoEl.textContent = "Analyse en pause";
+  const msg = reason === "no_sensor" ? "Aucun capteur connecté" : "Analyse en pause";
+  trendInfoEl.textContent = msg;
   trendInfoEl.style.color = "#9ca3af";
-  qualityEl.textContent = "Analyse en pause";
+  qualityEl.textContent = msg;
   qualityEl.style.color = "#9ca3af";
   qualityEl.style.background = "rgba(255,255,255,0.08)";
 }
@@ -446,6 +494,15 @@ function animateQuality(ppm) {
   lastQualityPPM = ppm;
 }
 
+// Normalize metrics; but don't block CO₂ chart if temp/humidity missing
+function normalizeMetrics(data) {
+  const temp = data?.temp ?? lastTemp;
+  const humidity = data?.humidity ?? lastHumidity;
+  lastTemp = temp ?? lastTemp;
+  lastHumidity = humidity ?? lastHumidity;
+  return { temp, humidity };
+}
+
 /*
 ================================================================================
                       SETTINGS & POLLING
@@ -485,16 +542,10 @@ async function loadLiveSettings() {
 }
 
 function startPolling() {
-  // Use WebSocket for live updates (no polling needed)
-  if (useWebSocket && isWSConnected()) {
-    console.log("✓ Using WebSocket for live updates");
-    return;
-  }
-  
-  // Fallback to polling if WebSocket not available
+  // Only poll when WebSocket isn't connected
+  if (useWebSocket && isWSConnected()) return;
   if (!analysisRunningLocal) return;
-  stopPolling();
-  console.log("⚠ Falling back to polling (WebSocket not available)");
+  if (pollInterval) return;
   pollInterval = setInterval(poll, pollingDelay);
 }
 
@@ -511,7 +562,10 @@ window.stopPolling = stopPolling;
 
 function updatePollingSpeed(seconds) {
   pollingDelay = seconds * 1000;
-  // Only restart polling if not using WebSocket
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
   if (!useWebSocket || !isWSConnected()) {
     startPolling();
   }
@@ -524,22 +578,16 @@ function updatePollingSpeed(seconds) {
 window.handleCO2Update = function(data) {
   if (!isLivePage) return;
 
-  // Deduplicate updates coming from both request-response and broadcast
-  try {
-    if (data && data.timestamp) {
-      if (data.timestamp === lastCo2Timestamp) return;
-      lastCo2Timestamp = data.timestamp;
-    }
-  } catch (e) {
-    // ignore
-  }
+  const metrics = normalizeMetrics(data);
+  const temp = metrics?.temp;
+  const humidity = metrics?.humidity;
 
   /* ⏸ PAUSE HANDLING */
   if (data.analysis_running === false) {
     analysisRunningLocal = false;
     updateNavAnalysisState(false);
     hidePausedOverlay();
-    showPausedOverlay();
+    showPausedOverlay(data.reason);
     stopPolling();
     return;
   }
@@ -575,7 +623,21 @@ window.handleCO2Update = function(data) {
     ppm = Math.round(recentValues.reduce((a, b) => a + b, 0) / recentValues.length);
   }
 
-  console.log("📊 New PPM (WebSocket):", ppm);
+  console.log("📊 New PPM (WebSocket):", ppm, "at", data.timestamp);
+
+  // Sync simulator status widgets if present
+  const simCo2 = document.getElementById("sim-co2");
+  const simTemp = document.getElementById("sim-temp");
+  const simHumidity = document.getElementById("sim-humidity");
+  if (simCo2) {
+    simCo2.innerHTML = `${Math.round(ppm)}<span class="status-unit">ppm</span>`;
+  }
+  if (simTemp && temp != null) {
+    simTemp.innerHTML = `${Number(temp).toFixed(1)}<span class="status-unit">°C</span>`;
+  }
+  if (simHumidity && humidity != null) {
+    simHumidity.innerHTML = `${Number(humidity).toFixed(1)}<span class="status-unit">%</span>`;
+  }
 
   // Track hourly trends
   pushToHourly(ppm);
@@ -599,10 +661,10 @@ window.handleCO2Update = function(data) {
     try { window.pushNavPpm(ppm, data.timestamp); } catch (e) {}
   }
 
-  updateTrend(lastPPM, ppm);
-  animateValue(ppm);
-  animateQuality(ppm);
-  updateChart(ppm, data.timestamp);
+    updateTrend(lastPPM, ppm);
+    animateValue(ppm);
+    animateQuality(ppm);
+    updateChart(ppm, data.timestamp, temp, humidity);
 };
 
 window.handleSettingsUpdate = function(settings) {
@@ -632,7 +694,7 @@ async function poll() {
     analysisRunningLocal = false;
     updateNavAnalysisState(false);
     hidePausedOverlay();
-    showPausedOverlay();
+    showPausedOverlay(data.reason);
     stopPolling();
     return;
   }
@@ -649,6 +711,10 @@ async function poll() {
 
   if (isLivePage) hidePausedOverlay();
 
+  const metrics = normalizeMetrics(data);
+  const temp = metrics?.temp;
+  const humidity = metrics?.humidity;
+
   if (!data || data.ppm == null) return;
 
   const ppm = data.ppm;
@@ -659,18 +725,24 @@ async function poll() {
   }
 
   if (isLivePage) {
-    // Dedupe by timestamp to avoid duplicate inserts when both poll and WS send
-    try {
-      if (data.timestamp) {
-        if (data.timestamp === lastCo2Timestamp) return;
-        lastCo2Timestamp = data.timestamp;
-      }
-    } catch (e) {}
-
     updateTrend(lastPPM, ppm);
     animateValue(ppm);
     animateQuality(ppm);
-    updateChart(ppm, data.timestamp);
+    updateChart(ppm, data.timestamp, temp, humidity);
+  }
+
+  // Sync simulator status widgets if present
+  const simCo2 = document.getElementById("sim-co2");
+  const simTemp = document.getElementById("sim-temp");
+  const simHumidity = document.getElementById("sim-humidity");
+  if (simCo2) {
+    simCo2.innerHTML = `${Math.round(ppm)}<span class="status-unit">ppm</span>`;
+  }
+  if (simTemp && temp != null) {
+    simTemp.innerHTML = `${Number(temp).toFixed(1)}<span class="status-unit">°C</span>`;
+  }
+  if (simHumidity && humidity != null) {
+    simHumidity.innerHTML = `${Number(humidity).toFixed(1)}<span class="status-unit">%</span>`;
   }
 }
 
@@ -687,22 +759,42 @@ function initLivePage() {
   createChart();
   loadLiveSettings();
   
-  // Use WebSocket for live updates
-  if (useWebSocket && socket) {
-    console.log("✓ Initializing WebSocket live updates");
-    // Initial data fetch
-    if (isWSConnected()) {
+  // Wait a bit for WebSocket to initialize
+  setTimeout(() => {
+    // Use WebSocket for live updates
+    if (useWebSocket && socket && isWSConnected()) {
+      console.log("✓ Initializing WebSocket live updates");
+      // Initial data fetch
       socket.emit('request_data');
+      stopPolling();
+    } else if (useWebSocket && socket) {
+      console.log("⏳ Waiting for WebSocket connection...");
+      // Wait for connection and then request data
+      const checkConnection = setInterval(() => {
+        if (isWSConnected()) {
+          console.log("✓ WebSocket connected, requesting data");
+          socket.emit('request_data');
+          clearInterval(checkConnection);
+          stopPolling();
+        }
+      }, 100);
+      
+      // Fallback to polling after 2 seconds if WebSocket doesn't connect
+      setTimeout(() => {
+        clearInterval(checkConnection);
+        if (!isWSConnected()) {
+          console.log("⚠ WebSocket timeout, falling back to polling");
+          poll();
+          startPolling();
+        }
+      }, 2000);
     } else {
-      // Fallback while WebSocket connects
+      // Fallback to polling
+      console.log("⚠ Initializing polling fallback");
+      poll();
       startPolling();
     }
-  } else {
-    // Fallback to polling
-    console.log("⚠ Initializing polling fallback");
-    poll();
-    startPolling();
-  }
+  }, 100);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── 

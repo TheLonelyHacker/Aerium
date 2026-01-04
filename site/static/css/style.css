@@ -1052,6 +1052,7 @@ input[type="range"] {
   outline: none;
   appearance: none;
   transition: background 0.3s ease;
+  cursor: pointer;
 }
 
 input[type="range"]:hover {
@@ -1123,6 +1124,7 @@ input[type="range"]::-moz-range-thumb:hover {
   font-weight: 600;
   font-size: 0.85rem;
   color: var(--bg);
+  transition: width 0.3s ease;
 }
 
 .good-seg {

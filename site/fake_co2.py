@@ -17,6 +17,7 @@ _trend_counter = 0
 _scenario = "normal"  # normal, office_hours, sleep, ventilation_active, anomaly
 _scenario_timer = 0
 _scenario_duration = 0
+_paused = False
 
 # ==================== SIMULATION SCENARIOS ====================
 
@@ -202,7 +203,15 @@ def generate_co2_data(realistic=True):
     Returns:
         dict: {'co2': int, 'temp': float, 'humidity': float}
     """
-    global _active_scenario, _scenario_timer, _scenario_duration
+    global _active_scenario, _scenario_timer, _scenario_duration, _paused
+
+    # If paused, return the current values without advancing the simulation
+    if _paused:
+        return {
+            'co2': int(_active_scenario.co2),
+            'temp': round(_active_scenario.temp, 1),
+            'humidity': round(_active_scenario.humidity, 1)
+        }
     
     if not realistic:
         # Random mode for testing
@@ -234,23 +243,34 @@ def generate_co2(realistic=True):
     return data['co2']
 
 
-def save_reading(ppm: int, temp: Optional[float] = None, humidity: Optional[float] = None):
-    """
-    Save CO2 reading to database
-    
+def save_reading(ppm: int, temp: Optional[float] = None, humidity: Optional[float] = None, *, source: str = "live", persist: bool = True):
+    """Save CO₂ reading to the database with optional source tagging.
+
     Args:
-        ppm: CO2 level in ppm
+        ppm: CO₂ level in ppm
         temp: Optional temperature in Celsius
         humidity: Optional humidity as percentage
+        source: Origin of the reading (e.g., 'live', 'sim')
+        persist: If False, skip writing (useful for pure-simulation flows)
     """
+    if not persist:
+        return
+
     db = get_db()
-    
-    if temp is not None and humidity is not None:
-        db.execute(
-            "INSERT INTO co2_readings (ppm, temperature, humidity) VALUES (?, ?, ?)",
-            (ppm, temp, humidity)
-        )
-    else:
+
+    try:
+        if temp is not None and humidity is not None:
+            db.execute(
+                "INSERT INTO co2_readings (ppm, temperature, humidity, source) VALUES (?, ?, ?, ?)",
+                (ppm, temp, humidity, source)
+            )
+        else:
+            db.execute(
+                "INSERT INTO co2_readings (ppm, source) VALUES (?, ?)",
+                (ppm, source)
+            )
+    except Exception:
+        # Fallback if newer columns are missing on an older schema
         db.execute(
             "INSERT INTO co2_readings (ppm) VALUES (?)",
             (ppm,)
@@ -267,7 +287,8 @@ def get_scenario_info() -> dict:
         'temp': round(_active_scenario.temp, 1),
         'humidity': round(_active_scenario.humidity, 1),
         'timer': _scenario_timer,
-        'duration': _scenario_duration
+        'duration': _scenario_duration,
+        'paused': _paused
     }
 
 
@@ -279,7 +300,7 @@ def reset_state(base_value: int = 600, scenario: str = 'normal'):
         base_value: Starting CO2 value
         scenario: Initial scenario name
     """
-    global _active_scenario, _scenario, _scenario_timer, _scenario_duration
+    global _active_scenario, _scenario, _scenario_timer, _scenario_duration, _paused
     
     if scenario in _scenarios:
         _active_scenario = _scenarios[scenario]
@@ -289,6 +310,13 @@ def reset_state(base_value: int = 600, scenario: str = 'normal'):
         _scenario = scenario
         _scenario_timer = 0
         _scenario_duration = 0
+        _paused = False
+
+
+def set_paused(paused: bool):
+    """Pause or resume the simulator progression."""
+    global _paused
+    _paused = bool(paused)
 
 
 # ==================== UTILITY FUNCTIONS ====================
