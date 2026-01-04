@@ -1,145 +1,172 @@
-# 📚 Morpheus CO₂ Webapp - Documentation
+# **Aerium — Capteur CO₂ & Qualité de l'air**
 
-**Generated**: January 3, 2026  
-**Status**: ✅ Complete & Production Ready
+### *Surveillance intelligente de la qualité de l’air — Développée en Python & Kivy*
 
----
-
-## 📖 Documentation Index
-
-### 🎯 Start Here
-1. **[00-OVERVIEW.md](00-OVERVIEW.md)** - Project status and completion summary
-2. **[01-QUICK-START.md](01-QUICK-START.md)** - How to get started
-
-### 👨‍💻 For Developers
-3. **[02-DEVELOPER-GUIDE.md](02-DEVELOPER-GUIDE.md)** - Day-to-day development reference
-4. **[03-TECHNICAL-DETAILS.md](03-TECHNICAL-DETAILS.md)** - Detailed technical information
-
-### 🗺️ Planning & Future Work
-5. **[04-IMPROVEMENTS-ROADMAP.md](04-IMPROVEMENTS-ROADMAP.md)** - Future enhancements and roadmap
-
-### 📋 Additional
-6. **[FILES-STRUCTURE.md](FILES-STRUCTURE.md)** - File organization
-7. **[TESTING-GUIDE.md](TESTING-GUIDE.md)** - How to run tests
-8. **[API-REFERENCE.md](API-REFERENCE.md)** - API endpoints
-9. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and fixes
+Aerium est une application permettant de surveiller en temps réel la qualité de l’air grâce à un capteur de CO₂ physique. Elle affiche les valeurs instantanément, informe l’utilisateur lorsque l’air devient mauvais, et permet de définir des alertes personnalisées.
+Idéale pour surveiller une chambre, salle de classe, bureau ou atelier.
 
 ---
 
-## 🎯 Quick Navigation
+## 🚀 **Fonctionnalités principales**
 
-| Need | File |
-|------|------|
-| Overall summary | [00-OVERVIEW.md](00-OVERVIEW.md) |
-| How to start | [01-QUICK-START.md](01-QUICK-START.md) |
-| Daily development | [02-DEVELOPER-GUIDE.md](02-DEVELOPER-GUIDE.md) |
-| Technical deep dive | [03-TECHNICAL-DETAILS.md](03-TECHNICAL-DETAILS.md) |
-| Future roadmap | [04-IMPROVEMENTS-ROADMAP.md](04-IMPROVEMENTS-ROADMAP.md) |
-| File locations | [FILES-STRUCTURE.md](FILES-STRUCTURE.md) |
-| Running tests | [TESTING-GUIDE.md](TESTING-GUIDE.md) |
-| API info | [API-REFERENCE.md](API-REFERENCE.md) |
-| Problem solving | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
+### 🌬️ Mesure en temps réel du CO₂
 
----
+Compatible avec les capteurs : **MH-Z19B, SCD30, …**
 
-## 📊 Key Statistics
+### 📊 Indicateurs de qualité de l’air
 
-**Code Delivered**:
-- 1,500+ lines of production code
-- 700+ lines of documentation
-- 15+ test cases
-- 6+ bug fixes
-- 20+ admin functions
+| Niveau CO₂ (ppm) | Qualité         |
+| ---------------- | --------------- |
+| **< 800 ppm**    | Bon             |
+| **800–1200 ppm** | Moyen           |
+| **> 1200 ppm**   | Mauvais — Aérer |
 
-**Performance**:
-- 10-100x faster queries (with caching)
-- 20-30% database size reduction
-- 50% fewer WebSocket messages
-- 100% bug-free code
+### 🔔 Alertes personnalisées
 
-**Quality**:
-- Full test coverage
-- Complete documentation
-- Production-ready code
-- Security hardened
+* Seuil CO₂ modifiable
+* Notifications visuelles et/ou sonores
+
+### 📱 Interface fluide (Kivy / KivyMD)
+
+* Écran principal avec indicateur couleur
+* Écran réglages : seuil + fréquence de mise à jour
+
+### 📈 Graphique en direct *(optionnel)*
+
+### 💾 Historique local *(optionnel)*
 
 ---
 
-## 🚀 Quick Start
+## 🧠 **Technologies utilisées**
+
+* **Langage :** Python 3.10+
+* **Framework UI :** Kivy / KivyMD
+* **Matériel :** capteurs CO₂ (MH-Z19B, SCD30…)
+* **Connexion :** UART / USB / I2C
+* **Communication :** `pyserial`
+* **Données :** SQLite *(optionnel)*
+
+---
+
+## 🏗️ **Architecture du projet**
+
+```
+Aerium/
+│
+├── main.py                  # Point d’entrée Kivy
+├── ui/                      # Interfaces .kv + widgets
+│   ├── home.kv
+│   └── settings.kv
+│
+├── sensors/                 # Connexion & lecture du capteur CO₂
+│   └── co2_reader.py
+│
+├── core/                    # Logique interne
+│   ├── analyzer.py          # Qualité de l'air, niveaux, alertes
+│   └── config.py            # Gestion des réglages
+│
+├── data/                    # Historique local (optionnel)
+│   └── history.db
+│
+└── assets/                  # Icônes, sons d’alertes
+```
+
+---
+
+## ⚙️ **Fonctionnement global**
+
+1. **Acquisition :** lecture continue du capteur (ppm)
+2. **Analyse :** classification des niveaux (bon / moyen / mauvais)
+3. **Alertes :** déclenchement si le seuil configuré est dépassé
+4. **Interface :** mise à jour en temps réel dans Kivy
+5. **Historique :** enregistrement périodique *(optionnel)*
+
+---
+
+## 🧩 **Installation**
 
 ```bash
-# Run tests
-cd ../site
-python test_data_websocket.py
+# Cloner le dépôt
+git clone https://github.com/<votre-utilisateur>/Aerium.git
+cd Aerium
 
-# Use optimization
-from optimization import cache_result, optimize_co2_query
+# Créer un environnement virtuel
+python -m venv venv
+source venv/bin/activate  # ou venv\Scripts\activate sous Windows
 
-# Use admin tools
-from admin_tools import AdminAnalytics
+# Installer les dépendances
+pip install -r requirements.txt
+```
+
+### Exemple de `requirements.txt`
+
+```
+kivy>=2.2.0
+kivymd>=1.2.0
+pyserial>=3.5
+```
+
+### Lancer l’application :
+
+```bash
+python main.py
 ```
 
 ---
 
-## 📁 File Structure
+## 🌐 **Version Web — WebApp Flask**
 
-```
-Morpheus/
-├── docs/                           ← Documentation (this folder)
-│   ├── README.md                   ← You are here
-│   ├── 00-OVERVIEW.md              ← Start here
-│   ├── 01-QUICK-START.md
-│   ├── 02-DEVELOPER-GUIDE.md
-│   ├── 03-TECHNICAL-DETAILS.md
-│   ├── 04-IMPROVEMENTS-ROADMAP.md
-│   ├── FILES-STRUCTURE.md
-│   ├── TESTING-GUIDE.md
-│   ├── API-REFERENCE.md
-│   └── TROUBLESHOOTING.md
-│
-├── site/                           ← Production code
-│   ├── app.py                      (Fixed)
-│   ├── database.py
-│   ├── optimization.py             (New)
-│   ├── admin_tools.py              (New)
-│   ├── test_data_websocket.py      (New)
-│   ├── test_suite.py               (New)
-│   └── ...
-│
-└── other files
+Aerium peut également être déployé en tant que **WebApp** pour visualiser la qualité de l’air depuis un navigateur. La version Flask permet de consulter les mesures en temps réel et d’afficher les graphiques interactifs.
+
+### ⚙️ **Installation & Lancement**
+
+1. Lancer l’application Flask :
+
+```bash
+python site/app.py
 ```
 
+4. Ouvrir votre navigateur à l’adresse :
+
+```
+http://127.0.0.1:5000
+```
 ---
 
-## ✅ Project Status
+## 📱 **Utilisation**
 
-| Component | Status | File |
-|-----------|--------|------|
-| Bug Fixes | ✅ Complete | site/app.py |
-| Optimization | ✅ Complete | site/optimization.py |
-| Admin Tools | ✅ Complete | site/admin_tools.py |
-| Testing | ✅ Complete | site/test_*.py |
-| Documentation | ✅ Complete | docs/ |
-
----
-
-## 🎓 Learning Path
-
-### Beginner
-1. Read [00-OVERVIEW.md](00-OVERVIEW.md)
-2. Follow [01-QUICK-START.md](01-QUICK-START.md)
-3. Run [TESTING-GUIDE.md](TESTING-GUIDE.md)
-
-### Intermediate
-1. Study [02-DEVELOPER-GUIDE.md](02-DEVELOPER-GUIDE.md)
-2. Review [FILES-STRUCTURE.md](FILES-STRUCTURE.md)
-3. Explore [API-REFERENCE.md](API-REFERENCE.md)
-
-### Advanced
-1. Deep dive [03-TECHNICAL-DETAILS.md](03-TECHNICAL-DETAILS.md)
-2. Check [04-IMPROVEMENTS-ROADMAP.md](04-IMPROVEMENTS-ROADMAP.md)
-3. Review [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+1. Connectez le capteur CO₂ à votre ordinateur.
+2. Ouvrez **Aerium**.
+3. Sélectionnez le port série (si l’app le propose).
+4. Sur l’écran d’accueil, surveillez :
+   * valeur CO₂ (ppm)
+   * indicateur couleur
+5. Configurez vos seuils d’alerte dans l’onglet *Réglages*.
+6. Aérez si une alerte apparaît.
 
 ---
 
-**Ready to start? → [00-OVERVIEW.md](00-OVERVIEW.md)** 📄
+## 🧮 **Logique de classification**
+
+* **< 800 ppm** → Air sain
+* **800–1200 ppm** → Air modérément chargé
+* **> 1200 ppm** → Qualité mauvaise → ouvrir la fenêtre
+
+**Alerte :** déclenchée si la valeur dépasse le seuil utilisateur durant *X secondes*.
+
+---
+
+## 🧠 **Feuille de route**
+
+| Phase    | Objectifs                                        |
+| -------- | ------------------------------------------------ |
+| **MVP**  | Lecture capteur + UI simple + indicateur couleur |
+| **v1.0** | Réglages des seuils + alertes sonores/visuelles  |
+| **v1.1** | Graphique live + historique local                |
+| **v2.0** | Optimisation, multiplateforme, nouveau design    |
+
+---
+
+## 📄 Licence
+
+Projet sous **Licence MIT** — voir le fichier `LICENSE`.

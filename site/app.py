@@ -32,8 +32,11 @@ from functools import wraps
 import csv
 import secrets
 
-from fake_co2 import generate_co2, save_reading, reset_state
+from fake_co2 import generate_co2, generate_co2_data, save_reading, reset_state, set_scenario, get_scenario_info
 from database import cleanup_old_data
+from advanced_features import (AdvancedAnalytics, CollaborationManager, 
+                               PerformanceOptimizer, VisualizationEngine)
+from advanced_features_routes import register_advanced_features
 
 
 app = Flask(__name__)
@@ -58,6 +61,12 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'noreply@mo
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 init_db()
+
+# Register advanced features routes
+register_advanced_features(app, limiter)
+
+# Register Jinja2 globals for templates
+app.jinja_env.globals['is_admin'] = is_admin
 
 # ================================================================================
 #                    SECURITY HEADERS & MIDDLEWARE
@@ -547,11 +556,78 @@ def live_page():
 def settings_page():
     return render_template("settings.html")  # Settings page
 
+@app.route("/simulator")
+@login_required
+def simulator_page():
+    """Simulator control page for testing scenarios"""
+    # Check if user is admin
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect('/login')
+    
+    # Use the is_admin function from database module
+    if not is_admin(user_id):
+        flash('Accès réservé aux administrateurs', 'error')
+        return redirect('/dashboard')
+    
+    return render_template("simulator.html")
+
 @app.route("/visualization")
 @login_required
 def visualization():
     """Advanced data visualization dashboard with CSV import"""
     return render_template("visualization.html")
+
+@app.route("/features-hub")
+@login_required
+def features_hub():
+    """Feature hub - Main landing page with all features"""
+    return render_template("features-hub.html")
+
+@app.route("/advanced-features")
+@login_required
+def advanced_features_page():
+    """Advanced features dashboard - Analytics, Insights, Visualizations, Collaboration, Performance"""
+    return render_template("advanced-features.html")
+
+@app.route("/analytics")
+@login_required
+def analytics_feature():
+    """Analytics & Insights feature page"""
+    return render_template("analytics-feature.html")
+
+@app.route("/visualizations")
+@login_required
+def visualizations_feature():
+    """Visualizations feature page"""
+    return render_template("visualizations-feature.html")
+
+@app.route("/collaboration")
+@login_required
+def collaboration_feature():
+    """Collaboration & Sharing feature page"""
+    return render_template("collaboration-feature.html")
+
+@app.route("/performance")
+@login_required
+def performance_feature():
+    """Performance & Optimization feature page"""
+    return render_template("performance-feature.html")
+
+@app.route("/health")
+@login_required
+def health_feature():
+    """Health Recommendations feature page"""
+    return render_template("health-feature.html")
+
+@app.route("/admin-tools")
+@login_required
+def admin_tools():
+    """Advanced admin tools - Audit logs, sessions, retention, backups"""
+    user = get_user_by_id(session.get('user_id'))
+    if not user or user['role'] != 'admin':
+        return redirect(url_for('dashboard'))
+    return render_template("admin-tools.html")
 
 @app.route("/debug-session")
 def debug_session():
@@ -1580,6 +1656,72 @@ def metrics():
 
 
 # ================================================================================
+#                    HARDWARE SIMULATION CONTROL (TESTING)
+# ================================================================================
+
+@app.route("/api/simulator/scenario/<scenario_name>", methods=['POST'])
+def set_simulation_scenario(scenario_name):
+    """Set simulation scenario for testing"""
+    if not is_admin(session.get('user_id')):
+        return jsonify({'success': False, 'error': 'Admin only'}), 403
+    
+    duration = request.json.get('duration', 0) if request.json else 0
+    valid_scenarios = ['normal', 'office_hours', 'sleep', 'ventilation', 'anomaly']
+    
+    if scenario_name not in valid_scenarios:
+        return jsonify({'success': False, 'error': f'Invalid scenario. Must be one of: {valid_scenarios}'}), 400
+    
+    result = set_scenario(scenario_name, duration)
+    
+    if result:
+        return jsonify({
+            'success': True,
+            'message': f'Scenario set to {scenario_name}',
+            'duration': duration,
+            'info': get_scenario_info()
+        })
+    return jsonify({'success': False, 'error': 'Failed to set scenario'}), 400
+
+
+@app.route("/api/simulator/status", methods=['GET'])
+def get_simulator_status():
+    """Get current simulator status"""
+    if not is_admin(session.get('user_id')):
+        return jsonify({'success': False, 'error': 'Admin only'}), 403
+    
+    info = get_scenario_info()
+    return jsonify({
+        'success': True,
+        'simulator': {
+            'scenario': info['scenario'],
+            'co2': info['co2'],
+            'temperature': info['temp'],
+            'humidity': info['humidity'],
+            'timer': info['timer'],
+            'duration': info['duration']
+        }
+    })
+
+
+@app.route("/api/simulator/reset", methods=['POST'])
+def reset_simulator():
+    """Reset simulator to initial state"""
+    if not is_admin(session.get('user_id')):
+        return jsonify({'success': False, 'error': 'Admin only'}), 403
+    
+    base_co2 = request.json.get('base_co2', 600) if request.json else 600
+    scenario = request.json.get('scenario', 'normal') if request.json else 'normal'
+    
+    reset_state(base_co2, scenario)
+    
+    return jsonify({
+        'success': True,
+        'message': 'Simulator reset',
+        'info': get_scenario_info()
+    })
+
+
+# ================================================================================
 #                          WEBSOCKET HANDLERS
 # ================================================================================
 
@@ -1642,18 +1784,33 @@ def broadcast_co2_loop():
         settings = load_settings()
         
         if settings["analysis_running"]:
-            ppm = generate_co2(settings["realistic_mode"])
-            save_reading(ppm)
+            # Generate enhanced data with temperature and humidity
+            data = generate_co2_data(settings["realistic_mode"])
+            ppm = data['co2']
+            temp = data['temp']
+            humidity = data['humidity']
+            save_reading(ppm, temp, humidity)
             
-            # Only broadcast if value changed significantly (>= 5 ppm) or state changed
-            if last_ppm is None or abs(ppm - last_ppm) >= 5 or last_analysis_state != True:
+            # Broadcast every time (more responsive) or if state changed
+            if last_ppm is None or last_analysis_state != True:
                 socketio.emit('co2_update', {
                     'analysis_running': True,
                     'ppm': ppm,
+                    'temp': temp,
+                    'humidity': humidity,
                     'timestamp': datetime.now(UTC).isoformat()
                 }, to=None)
                 last_ppm = ppm
                 last_analysis_state = True
+            elif abs(ppm - last_ppm) >= 2:  # Reduced threshold from 5 to 2 ppm
+                socketio.emit('co2_update', {
+                    'analysis_running': True,
+                    'ppm': ppm,
+                    'temp': temp,
+                    'humidity': humidity,
+                    'timestamp': datetime.now(UTC).isoformat()
+                }, to=None)
+                last_ppm = ppm
         else:
             # Only broadcast state change once
             if last_analysis_state != False:
@@ -1664,8 +1821,8 @@ def broadcast_co2_loop():
                 }, to=None)
                 last_analysis_state = False
         
-        # Respect update_speed setting (default 1 second)
-        update_delay = settings.get("update_speed", 1)
+        # Faster update speed: 500ms instead of 1s
+        update_delay = settings.get("update_speed", 0.5)
         time.sleep(update_delay)
 
 def start_broadcast_thread():

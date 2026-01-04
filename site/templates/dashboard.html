@@ -97,7 +97,7 @@
               {% if user.role == 'admin' %}
               <span style="background: rgba(239, 83, 80, 0.2); color: #ff6b6b; padding: 4px 8px; border-radius: 4px; font-weight: 600;">Admin</span>
               {% else %}
-              <span style="background: rgba(61, 217, 143, 0.2); color: #4ade80; padding: 4px 8px; border-radius: 4px;">User</span>
+              <span style="background: rgba(61, 217, 143, 0.2); color: #4ade80; padding: 4px 8px; border-radius: 4px;">Utilisateur</span>
               {% endif %}
             </td>
             <td style="padding: 15px 10px; text-align: center; font-size: 0.85rem; color: #9ca3af;">
@@ -121,7 +121,7 @@
                 onmouseover="this.style.opacity='0.8'"
                 onmouseout="this.style.opacity='1'"
               >
-                {% if user.role == 'user' %}Make Admin{% else %}Remove Admin{% endif %}
+                {% if user.role == 'user' %}Faire Admin{% else %}Retirer Admin{% endif %}
               </button>
               {% else %}
               <span style="color: #9ca3af; font-size: 0.85rem;">Vous</span>
@@ -138,9 +138,9 @@
 <script>
 function toggleRole(userId, currentRole) {
   const newRole = currentRole === 'admin' ? 'user' : 'admin';
-  const action = newRole === 'admin' ? 'Make Admin' : 'Remove Admin';
+  const action = newRole === 'admin' ? 'Faire Admin' : 'Retirer Admin';
   
-  if (!confirm(`Are you sure you want to ${action} this user?`)) {
+  if (!confirm(`Êtes-vous sûr de vouloir ${action} cet utilisateur?`)) {
     return;
   }
   
@@ -156,12 +156,12 @@ function toggleRole(userId, currentRole) {
       // Reload the page to show updated roles
       location.reload();
     } else {
-      alert('Error: ' + (data.error || 'Failed to update role'));
+      alert('Erreur: ' + (data.error || 'Impossible de mettre à jour le rôle'));
     }
   })
   .catch(error => {
     console.error('Error:', error);
-    alert('Failed to update user role');
+    alert('Impossible de mettre à jour le rôle utilisateur');
   });
 }
 </script>
