@@ -40,7 +40,12 @@ docs/
 ├── GUIDE-UTILISATEUR.md           # Guide complet des fonctionnalités
 ├── REFERENCE-API.md               # Documentation API REST et WebSocket
 ├── GUIDE-DEVELOPPEUR.md           # Architecture et contribution
-└── DEPANNAGE.md                   # Résolution de problèmes
+├── DEPANNAGE.md                   # Résolution de problèmes
+│
+└── analysis/                       # 📊 Rapports d'analyse détaillés
+    ├── INDEX.md                    # Index des rapports
+    ├── WEBAPP_ANALYSIS.md          # Analyse complète de l'architecture
+    └── TEMPLATES_CONSOLIDATION.md  # Plan de consolidation HTML
 ```
 
 ---

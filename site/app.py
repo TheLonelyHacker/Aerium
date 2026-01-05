@@ -352,7 +352,7 @@ def login_page():
         remember_me = request.form.get("remember_me") == "on"
         
         if not username or not password:
-            return render_template("login.html", error="Nom d'utilisateur et mot de passe requis")
+            return render_template("auth/login.html", error="Nom d'utilisateur et mot de passe requis")
         
         user = get_user_by_username(username)
         
@@ -381,9 +381,9 @@ def login_page():
                 return redirect(next_page)
             return redirect(url_for('index'))
         else:
-            return render_template("login.html", error="Identifiants invalides")
-    
-    return render_template("login.html")
+            return render_template("auth/login.html", error="Identifiants invalides")
+
+    return render_template("auth/login.html")
 
 @app.route("/forgot-password", methods=["GET", "POST"])
 @limiter.limit("3 per minute")
@@ -393,7 +393,7 @@ def forgot_password_page():
         email = request.form.get("email")
         
         if not email:
-            return render_template("forgot_password.html", error="Veuillez entrer votre email")
+            return render_template("auth/recovery.html", forgot_error="Veuillez entrer votre email")
         
         user = get_user_by_email(email)
         
@@ -407,21 +407,18 @@ def forgot_password_page():
             email_sent = send_password_reset_email(email, user['username'], token)
             
             if email_sent:
-                return render_template("forgot_password.html",
-                    success=True,
-                    message=f"Vérifiez votre email ({email}) pour obtenir le lien de réinitialisation du mot de passe.")
+                return render_template("auth/recovery.html",
+                    forgot_success=True)
             else:
                 # Email service not configured, still show success for security
-                return render_template("forgot_password.html",
-                    success=True,
-                    message="Si ce compte existe, un email de réinitialisation a été envoyé.")
+                return render_template("auth/recovery.html",
+                    forgot_success=True)
         else:
             # Don't reveal if email exists (security best practice)
-            return render_template("forgot_password.html",
-                success=True,
-                message="Si ce compte existe, un email de réinitialisation a été envoyé.")
+            return render_template("auth/recovery.html",
+                forgot_success=True)
     
-    return render_template("forgot_password.html")
+    return render_template("auth/recovery.html")
 
 @app.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password_page(token):
@@ -429,9 +426,9 @@ def reset_password_page(token):
     user_id = verify_reset_token(token)
     
     if not user_id:
-        return render_template("reset_password.html", 
-            error="Lien de réinitialisation invalide ou expiré.", 
-            valid_token=False), 400
+        return render_template("auth/recovery.html", 
+            reset_error="Lien de réinitialisation invalide ou expiré.", 
+            token=token), 400
     
     if request.method == "POST":
         new_password = request.form.get("new_password")
@@ -439,27 +436,26 @@ def reset_password_page(token):
         
         # Validation
         if not new_password or not confirm_password:
-            return render_template("reset_password.html", error="Tous les champs sont requis", valid_token=True)
+            return render_template("auth/recovery.html", reset_error="Tous les champs sont requis", token=token)
         
         if len(new_password) < 6:
-            return render_template("reset_password.html", 
-                error="Le mot de passe doit contenir au moins 6 caractères", 
-                valid_token=True)
+            return render_template("auth/recovery.html", 
+                reset_error="Le mot de passe doit contenir au moins 6 caractères", 
+                token=token)
         
         if new_password != confirm_password:
-            return render_template("reset_password.html", 
-                error="Les mots de passe ne correspondent pas", 
-                valid_token=True)
+            return render_template("auth/recovery.html", 
+                reset_error="Les mots de passe ne correspondent pas", 
+                token=token)
         
         # Reset password
         new_password_hash = generate_password_hash(new_password)
         reset_password(user_id, new_password_hash, token)
         
-        return render_template("reset_password.html", 
-            success=True, 
-            message="Votre mot de passe a été réinitialisé avec succès! Vous pouvez maintenant vous connecter.")
+        return render_template("auth/recovery.html", 
+            reset_success=True)
     
-    return render_template("reset_password.html", valid_token=True)
+    return render_template("auth/recovery.html", token=token)
 
 @app.route("/register", methods=["GET", "POST"])
 @limiter.limit("3 per minute")
@@ -472,27 +468,27 @@ def register_page():
         
         # Validation
         if not all([username, email, password, confirm_password]):
-            return render_template("register.html", error="Tous les champs sont requis")
+            return render_template("auth/register.html", error="Tous les champs sont requis")
         
         if len(username) < 3:
-            return render_template("register.html", error="Le nom d'utilisateur doit contenir au moins 3 caractères")
+            return render_template("auth/register.html", error="Le nom d'utilisateur doit contenir au moins 3 caractères")
         
         if len(password) < 6:
-            return render_template("register.html", error="Le mot de passe doit contenir au moins 6 caractères")
+            return render_template("auth/register.html", error="Le mot de passe doit contenir au moins 6 caractères")
         
         if password != confirm_password:
-            return render_template("register.html", error="Les mots de passe ne correspondent pas")
+            return render_template("auth/register.html", error="Les mots de passe ne correspondent pas")
         
         # Check if username or email already exists
         if get_user_by_username(username):
-            return render_template("register.html", error="Ce nom d'utilisateur existe déjà")
+            return render_template("auth/register.html", error="Ce nom d'utilisateur existe déjà")
         
         # Create user
         password_hash = generate_password_hash(password)
         user_id = create_user(username, email, password_hash)
         
         if not user_id:
-            return render_template("register.html", error="Cet email existe déjà")
+            return render_template("auth/register.html", error="Cet email existe déjà")
         
         # Generate verification token
         token = secrets.token_urlsafe(32)
@@ -513,7 +509,7 @@ def register_page():
             # Redirect to onboarding for new users
             return redirect(url_for('onboarding_page'))
     
-    return render_template("register.html")
+    return render_template("auth/register.html")
 
 @app.route("/logout")
 def logout():
@@ -528,7 +524,7 @@ def verify_email(token):
     if user_id:
         user = get_user_by_id(user_id)
         if user:
-            return render_template("email_verified.html", username=user['username'], success=True)
+            return render_template("auth/email_verified.html", username=user['username'], success=True)
         else:
             return render_template("email_verified.html", 
                 error="Lien de vérification invalide ou expiré. Veuillez vous réinscrire.",
@@ -596,7 +592,7 @@ def change_password():
             error = "Les mots de passe ne correspondent pas"
         
         if error:
-            return render_template("change_password.html", error=error)
+            return render_template("auth/change_password.html", error=error)
         
         # Update password
         db = get_db()
@@ -608,10 +604,10 @@ def change_password():
         db.commit()
         db.close()
         
-        return render_template("change_password.html", success=True)
+        return render_template("auth/change_password.html", success=True)
     
-    return render_template("change_password.html", user=user)
-    return render_template("profile.html", user=user, settings=user_settings)
+    return render_template("auth/change_password.html", user=user)
+    return render_template("user-management/profile.html", user=user, settings=user_settings)
 
 # 1. ROOT ROUTE - DASHBOARD (MUST BE FIRST!)
 @app.route("/")
@@ -688,97 +684,97 @@ def dashboard():
 @app.route("/live")
 @login_required
 def live_page():
-    return render_template("live.html")  # Settings page
+    return render_template("monitoring/live.html")  # Live monitoring with visualizations
 
 # 2. SETTINGS ROUTE
 @app.route("/settings")
 @login_required
 def settings_page():
-    return render_template("settings.html")  # Settings page
+    return render_template("user-management/settings.html")  # Settings page
 
 @app.route("/sensors")
 @login_required
 def sensors_page():
     """Sensor management and configuration page"""
-    return render_template("sensors.html")
+    return render_template("system/sensors.html")
 
 @app.route("/simulator")
 @login_required
 def simulator_page():
     """Simulator control page for testing scenarios - accessible to all users"""
-    return render_template("simulator.html")
+    return render_template("system/simulator.html")
 
 @app.route("/visualization")
 @login_required
 def visualization():
     """Advanced data visualization dashboard with CSV import"""
-    return render_template("visualization.html")
+    return render_template("visualization/visualization.html")
 
 @app.route("/features-hub")
 @login_required
 def features_hub():
     """Feature hub - Main landing page with all features"""
-    return render_template("features-hub.html")
+    return render_template("features/features-hub.html")
 
 @app.route("/advanced-features")
 @login_required
 def advanced_features_page():
     """Advanced features dashboard - Analytics, Insights, Visualizations, Collaboration, Performance"""
-    return render_template("advanced-features.html")
+    return render_template("features/advanced-features.html")
 
 @app.route("/analytics")
 @login_required
 def analytics_feature():
     """Analytics & Insights feature page"""
-    return render_template("analytics-feature.html")
+    return render_template("analytics/analytics-feature.html")
 
 @app.route("/visualizations")
 @login_required
 def visualizations_feature():
     """Visualizations feature page"""
-    return render_template("visualizations-feature.html")
+    return render_template("visualization/visualizations-feature.html")
 
 @app.route("/collaboration")
 @login_required
 def collaboration_feature():
     """Collaboration & Sharing feature page"""
-    return render_template("collaboration-feature.html")
+    return render_template("collaboration/collaboration.html")
 
 @app.route("/export")
 @login_required
 def export_manager():
     """Data Export Manager - Export readings to CSV, Excel, PDF"""
-    return render_template("export-manager.html")
+    return render_template("data-export/export-manager.html")
 
 @app.route("/organizations")
 @login_required
 def organizations():
     """Multi-Tenant Management - Create and manage organizations"""
-    return render_template("tenant-management.html")
+    return render_template("system/tenant-management.html")
 
 @app.route("/team-collaboration")
 @login_required
 def team_collaboration():
     """Team Collaboration - Share dashboards, alerts, and comments"""
-    return render_template("collaboration.html")
+    return render_template("collaboration/collaboration-feature.html")
 
 @app.route("/admin/performance")
 @login_required
 def performance_monitoring():
     """Performance Monitoring - Real-time metrics and optimization"""
-    return render_template("performance-monitoring.html")
+    return render_template("system/performance-monitoring.html")
 
 @app.route("/performance")
 @login_required
 def performance_feature():
     """Performance & Optimization feature page"""
-    return render_template("performance-feature.html")
+    return render_template("features/performance-feature.html")
 
 @app.route("/health")
 @login_required
 def health_feature():
     """Health Recommendations feature page"""
-    return render_template("health-feature.html")
+    return render_template("features/health-feature.html")
 
 @app.route("/admin-tools")
 @login_required
@@ -787,7 +783,7 @@ def admin_tools():
     user = get_user_by_id(session.get('user_id'))
     if not user or user['role'] != 'admin':
         return redirect(url_for('dashboard'))
-    return render_template("admin-tools.html")
+    return render_template("admin/admin-tools.html")
 
 @app.route("/debug-session")
 def debug_session():
@@ -819,7 +815,7 @@ def admin_dashboard():
     audit_logs = get_audit_logs(limit=20)
     db_info = get_database_info()
     
-    return render_template("admin.html", 
+    return render_template("admin/admin.html", 
                          stats=stats, 
                          users=users, 
                          audit_logs=audit_logs,
@@ -954,7 +950,7 @@ def onboarding_page():
         init_onboarding(user_id)
         onboarding = get_onboarding_status(user_id)
     
-    return render_template("onboarding.html", onboarding=onboarding)
+    return render_template("user-management/onboarding.html", onboarding=onboarding)
 
 @app.route("/api/onboarding/step/<int:step>", methods=["POST"])
 @login_required
@@ -2559,7 +2555,7 @@ def export_daily_pdf():
         report_css = f.read()
 
     html = render_template(
-        "report_daily.html",
+        "system/report_daily.html",
         date=date.today().strftime("%d %B %Y"),
         avg=avg,
         max=max_ppm,
