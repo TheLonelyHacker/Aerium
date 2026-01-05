@@ -201,6 +201,42 @@ DEFAULT_SETTINGS = {
     "simulate_live": False,
 }
 
+# Centralized source aliases to keep simulation data isolated from live UI
+REAL_SOURCES = ("live", "sensor", "real", "live_real")
+SIM_SOURCES = ("sim",)
+IMPORT_SOURCES = ("import",)
+
+
+def resolve_source_param(*, default="live", allow_sim=False, allow_import=False):
+    """Normalize ?source= query to an allowed bucket (live/sim/import)."""
+    raw = (request.args.get("source") or default)
+    normalized_map = {
+        "live": "live",
+        "real": "live",
+        "hardware": "live",
+        "simulation": "sim",
+        "sim": "sim",
+        "import": "import",
+        "csv": "import",
+    }
+    normalized = normalized_map.get(str(raw).lower(), "live")
+
+    if normalized == "sim" and not allow_sim:
+        normalized = "live"
+    if normalized == "import" and not allow_import:
+        normalized = "live"
+
+    return normalized
+
+
+def build_source_filter(db_source):
+    """Return SQL clause and params for the chosen data source bucket."""
+    if db_source == "sim":
+        return "source = ?", SIM_SOURCES
+    if db_source == "import":
+        return "source = ?", IMPORT_SOURCES
+    return f"source IN ({','.join('?' * len(REAL_SOURCES))})", REAL_SOURCES
+
 def save_settings(data):
     db = get_db()
     for k, v in data.items():
@@ -848,13 +884,17 @@ def export_json():
     """Export CO₂ data as JSON"""
     user_id = session.get('user_id')
     days = request.args.get('days', 30, type=int)
+
+    db_source = resolve_source_param(allow_sim=False, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
     
     db = get_db()
-    readings = db.execute("""
+    readings = db.execute(f"""
         SELECT timestamp, ppm FROM co2_readings
         WHERE timestamp >= datetime('now', '-' || ? || ' days')
+        AND {source_clause}
         ORDER BY timestamp DESC
-    """, (days,)).fetchall()
+    """, (days, *source_params)).fetchall()
     db.close()
     
     data = {
@@ -873,13 +913,17 @@ def export_csv():
     """Export CO₂ data as CSV"""
     user_id = session.get('user_id')
     days = request.args.get('days', 30, type=int)
+
+    db_source = resolve_source_param(allow_sim=False, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
     
     db = get_db()
-    readings = db.execute("""
+    readings = db.execute(f"""
         SELECT timestamp, ppm FROM co2_readings
         WHERE timestamp >= datetime('now', '-' || ? || ' days')
+        AND {source_clause}
         ORDER BY timestamp DESC
-    """, (days,)).fetchall()
+    """, (days, *source_params)).fetchall()
     db.close()
     
     # Generate CSV
@@ -900,13 +944,17 @@ def export_excel():
     """Export CO₂ data as Excel"""
     user_id = session.get('user_id')
     days = request.args.get('days', 30, type=int)
+
+    db_source = resolve_source_param(allow_sim=False, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
     
     db = get_db()
-    readings = db.execute("""
+    readings = db.execute(f"""
         SELECT timestamp, ppm FROM co2_readings
         WHERE timestamp >= datetime('now', '-' || ? || ' days')
+        AND {source_clause}
         ORDER BY timestamp DESC
-    """, (days,)).fetchall()
+    """, (days, *source_params)).fetchall()
     db.close()
     
     try:
@@ -1057,25 +1105,30 @@ def import_stats():
 @login_required
 def analytics_week_compare():
     """Get week-over-week comparison data"""
+    db_source = resolve_source_param(allow_sim=True, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
+
     db = get_db()
     
     # Current week
-    current_week = db.execute("""
+    current_week = db.execute(f"""
         SELECT DATE(timestamp) as date, AVG(ppm) as avg_ppm, MAX(ppm) as max_ppm, MIN(ppm) as min_ppm, COUNT(*) as count
         FROM co2_readings
         WHERE timestamp >= datetime('now', '-7 days')
+        AND {source_clause}
         GROUP BY DATE(timestamp)
         ORDER BY date
-    """).fetchall()
+    """, source_params).fetchall()
     
     # Previous week
-    prev_week = db.execute("""
+    prev_week = db.execute(f"""
         SELECT DATE(timestamp) as date, AVG(ppm) as avg_ppm, MAX(ppm) as max_ppm, MIN(ppm) as min_ppm, COUNT(*) as count
         FROM co2_readings
         WHERE timestamp >= datetime('now', '-14 days') AND timestamp < datetime('now', '-7 days')
+        AND {source_clause}
         GROUP BY DATE(timestamp)
         ORDER BY date
-    """).fetchall()
+    """, source_params).fetchall()
     
     db.close()
     
@@ -1088,39 +1141,37 @@ def analytics_week_compare():
 @login_required
 def analytics_trend():
     """Get trend analysis (rising/stable/falling)"""
-    source = request.args.get('source', 'live')
-    # Map frontend source names to database values
-    source_map = {'live': 'live', 'simulation': 'sim', 'import': 'import'}
-    db_source = source_map.get(source, 'live')
+    db_source = resolve_source_param(allow_sim=True, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
     
     db = get_db()
     
     # For imported data, show ALL data; for live/sim, show last 7 days
     if db_source == 'import':
-        data = db.execute("""
+        data = db.execute(f"""
             SELECT 
                 strftime('%Y-%m-%d %H:00', timestamp) as hour,
                 AVG(ppm) as avg_ppm,
                 COUNT(*) as readings
             FROM co2_readings
-            WHERE source = ?
+            WHERE {source_clause}
             GROUP BY hour
             ORDER BY hour DESC
             LIMIT 168
-        """, (db_source,)).fetchall()
+        """, source_params).fetchall()
     else:
-        data = db.execute("""
+        data = db.execute(f"""
             SELECT 
                 strftime('%Y-%m-%d %H:00', timestamp) as hour,
                 AVG(ppm) as avg_ppm,
                 COUNT(*) as readings
             FROM co2_readings
             WHERE timestamp >= datetime('now', '-7 days')
-            AND source = ?
+            AND {source_clause}
             GROUP BY hour
             ORDER BY hour DESC
             LIMIT 168
-        """, (db_source,)).fetchall()
+        """, source_params).fetchall()
     
     db.close()
     
@@ -1173,16 +1224,20 @@ def analytics_custom_range():
     if not start_date or not end_date:
         return jsonify({'error': 'start and end dates required'}), 400
     
+    db_source = resolve_source_param(allow_sim=True, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
+
     db = get_db()
     
-    readings = db.execute("""
+    readings = db.execute(f"""
         SELECT timestamp, ppm FROM co2_readings
         WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
+        AND {source_clause}
         ORDER BY timestamp
-    """, (start_date, end_date)).fetchall()
+    """, (start_date, end_date, *source_params)).fetchall()
     
     # Calculate stats
-    stats = db.execute("""
+    stats = db.execute(f"""
         SELECT 
             COUNT(*) as count,
             AVG(ppm) as avg,
@@ -1190,7 +1245,8 @@ def analytics_custom_range():
             MAX(ppm) as max
         FROM co2_readings
         WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
-    """, (start_date, end_date)).fetchone()
+        AND {source_clause}
+    """, (start_date, end_date, *source_params)).fetchone()
     
     db.close()
     
@@ -1204,10 +1260,8 @@ def analytics_custom_range():
 def compare_periods():
     """Compare CO₂ data between two time periods (e.g., this week vs last week)"""
     period_type = request.args.get('type', 'week')  # week, month, or custom
-    source = request.args.get('source', 'live')
-    # Map frontend source names to database values
-    source_map = {'live': 'live', 'simulation': 'sim', 'import': 'import'}
-    db_source = source_map.get(source, 'live')
+    db_source = resolve_source_param(allow_sim=True, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
     
     db = get_db()
     
@@ -1215,59 +1269,59 @@ def compare_periods():
         # For imported data, compare first half vs second half of dataset
         if db_source == 'import':
             # Get date range of imported data
-            date_range = db.execute("""
+            date_range = db.execute(f"""
                 SELECT MIN(timestamp) as min_date, MAX(timestamp) as max_date
-                FROM co2_readings WHERE source = ?
-            """, (db_source,)).fetchone()
+                FROM co2_readings WHERE {source_clause}
+            """, source_params).fetchone()
             
             if date_range and date_range['min_date'] and date_range['max_date']:
                 # Split in half
-                current_data = db.execute("""
+                current_data = db.execute(f"""
                     SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
                     FROM co2_readings
-                    WHERE source = ? AND timestamp >= (SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2) FROM co2_readings WHERE source = ?)
-                """, (db_source, db_source)).fetchone()
+                    WHERE {source_clause} AND timestamp >= (SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2) FROM co2_readings WHERE {source_clause})
+                """, (*source_params, *source_params)).fetchone()
                 
-                previous_data = db.execute("""
+                previous_data = db.execute(f"""
                     SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
                     FROM co2_readings
-                    WHERE source = ? AND timestamp < (SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2) FROM co2_readings WHERE source = ?)
-                """, (db_source, db_source)).fetchone()
+                    WHERE {source_clause} AND timestamp < (SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2) FROM co2_readings WHERE {source_clause})
+                """, (*source_params, *source_params)).fetchone()
             else:
                 current_data = {'avg': 0, 'min': 0, 'max': 0, 'count': 0}
                 previous_data = {'avg': 0, 'min': 0, 'max': 0, 'count': 0}
         else:
             # Compare this week to last week
-            current_data = db.execute("""
+            current_data = db.execute(f"""
                 SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
                 FROM co2_readings
                 WHERE timestamp >= datetime('now', '-7 days')
-                AND source = ?
-            """, (db_source,)).fetchone()
+                AND {source_clause}
+            """, source_params).fetchone()
             
-            previous_data = db.execute("""
+            previous_data = db.execute(f"""
                 SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
                 FROM co2_readings
                 WHERE timestamp >= datetime('now', '-14 days') AND timestamp < datetime('now', '-7 days')
-                AND source = ?
-            """, (db_source,)).fetchone()
+                AND {source_clause}
+            """, source_params).fetchone()
         
     elif period_type == 'month':
         # Compare this month to last month
-        current_data = db.execute("""
+        current_data = db.execute(f"""
             SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
             FROM co2_readings
             WHERE timestamp >= datetime('now', 'start of month')
-            AND source = ?
-        """, (db_source,)).fetchone()
+            AND {source_clause}
+        """, source_params).fetchone()
         
-        previous_data = db.execute("""
+        previous_data = db.execute(f"""
             SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
             FROM co2_readings
             WHERE timestamp >= datetime('now', '-1 month', 'start of month')
             AND timestamp < datetime('now', 'start of month')
-            AND source = ?
-        """, (db_source,)).fetchone()
+            AND {source_clause}
+        """, source_params).fetchone()
     else:
         return jsonify({'error': 'Invalid period_type'}), 400
     
@@ -1294,17 +1348,15 @@ def compare_periods():
 @login_required
 def daily_comparison():
     """Get daily averages for the last 30 days for trend visualization"""
-    source = request.args.get('source', 'live')
-    # Map frontend source names to database values
-    source_map = {'live': 'live', 'simulation': 'sim', 'import': 'import'}
-    db_source = source_map.get(source, 'live')
+    db_source = resolve_source_param(allow_sim=True, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
     
     db = get_db()
     
     # For imported data, show ALL data regardless of date range
     # For live/sim data, show last 30 days
     if db_source == 'import':
-        days_data = db.execute("""
+        days_data = db.execute(f"""
             SELECT 
                 DATE(timestamp) as date,
                 AVG(ppm) as avg_ppm,
@@ -1312,12 +1364,12 @@ def daily_comparison():
                 MAX(ppm) as max_ppm,
                 COUNT(*) as readings
             FROM co2_readings
-            WHERE source = ?
+            WHERE {source_clause}
             GROUP BY DATE(timestamp)
             ORDER BY date ASC
-        """, (db_source,)).fetchall()
+        """, source_params).fetchall()
     else:
-        days_data = db.execute("""
+        days_data = db.execute(f"""
             SELECT 
                 DATE(timestamp) as date,
                 AVG(ppm) as avg_ppm,
@@ -1326,10 +1378,10 @@ def daily_comparison():
                 COUNT(*) as readings
             FROM co2_readings
             WHERE timestamp >= datetime('now', '-30 days')
-            AND source = ?
+            AND {source_clause}
             GROUP BY DATE(timestamp)
             ORDER BY date ASC
-        """, (db_source,)).fetchall()
+        """, source_params).fetchall()
     
     db.close()
     
@@ -1349,18 +1401,22 @@ def generate_pdf_report():
         end_date = datetime.now().strftime('%Y-%m-%d')
         start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
     
+    db_source = resolve_source_param(allow_sim=False, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
+
     db = get_db()
     
     # Get data
-    readings = db.execute("""
+    readings = db.execute(f"""
         SELECT DATE(timestamp) as date, AVG(ppm) as avg_ppm, MAX(ppm) as max_ppm, MIN(ppm) as min_ppm
         FROM co2_readings
         WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
+        AND {source_clause}
         GROUP BY DATE(timestamp)
         ORDER BY date
-    """, (start_date, end_date)).fetchall()
+    """, (start_date, end_date, *source_params)).fetchall()
     
-    stats = db.execute("""
+    stats = db.execute(f"""
         SELECT 
             COUNT(*) as count,
             AVG(ppm) as avg,
@@ -1368,7 +1424,8 @@ def generate_pdf_report():
             MAX(ppm) as max
         FROM co2_readings
         WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
-    """, (start_date, end_date)).fetchone()
+        AND {source_clause}
+    """, (start_date, end_date, *source_params)).fetchone()
     
     db.close()
     
@@ -1486,14 +1543,14 @@ def history_range(range):
     return jsonify([dict(r) for r in rows])
 
 # 3. API ROUTES
-def get_latest_real_reading(max_age_minutes: int = 5):
-    """Return the most recent sensor reading if it is fresh enough."""
+def get_latest_real_reading(max_age_minutes: int = 1):
+    """Return the most recent hardware reading if it is fresh enough (default 1 min)."""
     db = get_db()
     row = db.execute(
         """
         SELECT ppm, temperature, humidity, timestamp, source
         FROM co2_readings
-        WHERE source IN ('sensor','real','live_real')
+        WHERE source IN ('sensor','live_real')
         ORDER BY timestamp DESC
         LIMIT 1
         """
@@ -1510,8 +1567,8 @@ def get_latest_real_reading(max_age_minutes: int = 5):
             if ts_dt < datetime.now(UTC) - timedelta(minutes=max_age_minutes):
                 return None
         except Exception:
-            # If parsing fails, accept the row without freshness check
-            pass
+            # If parsing fails, treat as stale to avoid surfacing ghost values
+            return None
 
     return dict(row)
 
@@ -1572,15 +1629,18 @@ def api_readings_ingest():
     """Ingest real sensor readings (POST) or fetch recent readings (GET)."""
     if request.method == "GET":
         days = request.args.get("days", default=1, type=int)
+        db_source = resolve_source_param(allow_sim=True, allow_import=True)
+        source_clause, source_params = build_source_filter(db_source)
         db = get_db()
         rows = db.execute(
-            """
+            f"""
             SELECT ppm, temperature, humidity, timestamp, source
             FROM co2_readings
             WHERE timestamp >= datetime('now', ?)
+            AND {source_clause}
             ORDER BY timestamp DESC
             """,
-            (f"-{days} days",)
+            (f"-{days} days", *source_params)
         ).fetchall()
         db.close()
         return jsonify([dict(r) for r in rows])
@@ -1634,10 +1694,10 @@ def api_simulator_latest():
 
 @app.route("/api/history/today")
 def api_history_today():
-    source = request.args.get("source", "real")
+    source_raw = request.args.get("source", "real")
 
     db = get_db()
-    if source == "all":
+    if source_raw == "all":
         rows = db.execute(
             """
             SELECT ppm, temperature, humidity, timestamp, source
@@ -1646,37 +1706,33 @@ def api_history_today():
             ORDER BY timestamp
             """
         ).fetchall()
-    elif source == "sim":
+    else:
+        db_source = resolve_source_param(default="live", allow_sim=True, allow_import=True)
+        source_clause, source_params = build_source_filter(db_source)
         rows = db.execute(
-            """
+            f"""
             SELECT ppm, temperature, humidity, timestamp, source
             FROM co2_readings
-            WHERE date(timestamp) = date('now') AND source = 'sim'
+            WHERE date(timestamp) = date('now') AND {source_clause}
             ORDER BY timestamp
-            """
-        ).fetchall()
-    else:  # real only
-        rows = db.execute(
-            """
-            SELECT ppm, temperature, humidity, timestamp, source
-            FROM co2_readings
-            WHERE date(timestamp) = date('now') AND source IN ('sensor','real','live_real')
-            ORDER BY timestamp
-            """
+            """,
+            source_params
         ).fetchall()
 
     db.close()
 
     return jsonify([dict(r) for r in rows])
 
-def get_today_history():
+def get_today_history(db_source="live"):
+    source_clause, source_params = build_source_filter(db_source)
+
     db = get_db()
-    rows = db.execute("""
+    rows = db.execute(f"""
         SELECT ppm, timestamp
         FROM co2_readings
-        WHERE date(timestamp) = date('now')
+        WHERE date(timestamp) = date('now') AND {source_clause}
         ORDER BY timestamp
-    """).fetchall()
+    """, source_params).fetchall()
     db.close()
 
     return [dict(r) for r in rows]
@@ -1882,13 +1938,17 @@ def api_backup_database():
 
 @app.route("/api/history/latest/<int:limit>")
 def api_history_latest(limit):
+    db_source = resolve_source_param(allow_sim=True, allow_import=True)
+    source_clause, source_params = build_source_filter(db_source)
+
     db = get_db()
-    rows = db.execute("""
+    rows = db.execute(f"""
         SELECT id, ppm, timestamp
         FROM co2_readings
+        WHERE {source_clause}
         ORDER BY id DESC
         LIMIT ?
-    """, (limit,)).fetchall()
+    """, (*source_params, limit)).fetchall()
     db.close()
 
     # reverse so oldest → newest
@@ -1970,7 +2030,8 @@ def generate_pdf(html):
 
 @app.route("/api/report/daily/pdf")
 def export_daily_pdf():
-    data = get_today_history()
+    db_source = resolve_source_param(allow_sim=True, allow_import=True)
+    data = get_today_history(db_source)
     settings = load_settings()
 
     if not data:

@@ -188,11 +188,12 @@ async function loadOverviewStats() {
     if (analysisEl) {
       if (simulationActive) analysisEl.textContent = "Simulation";
       else if (noSensor) analysisEl.textContent = "Aucun capteur";
+      else if (noSensor) analysisEl.textContent = "Aucun capteur";
       else analysisEl.textContent = isRunning ? "Active" : "Pause";
     }
 
     analysisWidget?.classList.toggle("paused", !isRunning);
-    analysisWidget?.classList.toggle("good", isRunning);
+    analysisWidget?.classList.toggle("good", isRunning && !noSensor);
 
     if (thresholdsEl) {
       thresholdsEl.textContent = `${settings.good_threshold} / ${settings.bad_threshold} ppm`;
@@ -214,8 +215,10 @@ async function loadOverviewStats() {
       // Still show daily stats below even in simulation
     }
 
-    /* TODAY HISTORY - always show stats, even when paused */
-    const data = await fetchTodayHistory(simulationActive ? "sim" : "real");
+    /* TODAY HISTORY - show nothing when no sensor to avoid stale values */
+    const data = noSensor
+      ? []
+      : await fetchTodayHistory(simulationActive ? "sim" : "real");
 
     if (data.length) {
       const values = data.map((d) => d.ppm);

@@ -410,6 +410,13 @@ function showPausedOverlay(reason = null) {
   qualityEl.textContent = msg;
   qualityEl.style.color = "#9ca3af";
   qualityEl.style.background = "rgba(255,255,255,0.08)";
+  lastPPM = null; // reset so we don't animate stale values after resume
+  // Clear chart values so ghost points don't linger when no sensor
+  if (chart && chart.data) {
+    chart.data.labels = [];
+    chart.data.datasets.forEach(ds => { ds.data = []; });
+    chart.update('none');
+  }
 }
 
 function hidePausedOverlay() {
@@ -588,11 +595,11 @@ window.handleCO2Update = function(data) {
   const humidity = metrics?.humidity;
 
   /* ⏸ PAUSE HANDLING */
-  if (data.analysis_running === false) {
+  if (data.analysis_running === false || data.reason === "no_sensor") {
     analysisRunningLocal = false;
     updateNavAnalysisState(false);
     hidePausedOverlay();
-    showPausedOverlay(data.reason);
+    showPausedOverlay(data.reason || "no_sensor");
     stopPolling();
     return;
   }
@@ -697,11 +704,11 @@ async function poll() {
   const data = await fetchLatestData();
 
   /* ⏸ PAUSE HANDLING */
-  if (data.analysis_running === false) {
+  if (data.analysis_running === false || data.reason === "no_sensor") {
     analysisRunningLocal = false;
     updateNavAnalysisState(false);
     hidePausedOverlay();
-    showPausedOverlay(data.reason);
+    showPausedOverlay(data.reason || "no_sensor");
     stopPolling();
     return;
   }
