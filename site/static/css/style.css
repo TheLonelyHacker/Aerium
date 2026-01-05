@@ -38,7 +38,7 @@
 }
 
 body {
-  background: linear-gradient(135deg, #0f0f23 0%, #1a1a3f 100%);
+  background: var(--bg);
   color: var(--text);
   font-family: 'Segoe UI', 'Helvetica Neue', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
@@ -48,6 +48,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: 0.2px;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── 
@@ -238,6 +239,632 @@ html[style*="--bg: #f8f9fa"] .theme-toggle:hover {
 :root[style*="--bg: #f8f9fa"] .nav-title,
 html[style*="--bg: #f8f9fa"] .nav-title {
   color: var(--text);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   COMPREHENSIVE LIGHT MODE THEME OVERRIDES (CLASS-BASED)
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+.light-mode {
+  --bg: #f8f9fa !important;
+  --bg-solid: #f8f9fa !important;
+  --card: #ffffff !important;
+  --card-solid: #ffffff !important;
+  --text: #1a1f36 !important;
+  --muted: #6c757d !important;
+  --good: #28a745 !important;
+  --medium: #ffc107 !important;
+  --bad: #dc3545 !important;
+  --accent: #0066cc !important;
+  --accent-alt: #004c99 !important;
+  --gradient-primary: linear-gradient(135deg, #0066cc 0%, #004c99 100%) !important;
+  --border-light: rgba(0,102,204,0.15) !important;
+  --border-dark: rgba(0,102,204,0.08) !important;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08) !important;
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1) !important;
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12) !important;
+  --shadow-accent: 0 4px 15px rgba(0,102,204,0.15) !important;
+}
+
+/* Light mode specific elements */
+.light-mode .navbar {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-bottom: 1px solid rgba(0, 102, 204, 0.15) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-mode .nav-center a {
+  color: var(--text) !important;
+}
+
+.light-mode .nav-center a:hover {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: #0066cc !important;
+}
+
+.light-mode .nav-center a.active {
+  color: #0066cc !important;
+  background: rgba(0, 102, 204, 0.15) !important;
+  box-shadow: 0 0 0 1px rgba(0, 102, 204, 0.3) !important;
+}
+
+.light-mode .nav-underline {
+  background: #0066cc !important;
+}
+
+.light-mode .nav-status {
+  color: var(--text) !important;
+}
+
+.light-mode .nav-status-text {
+  color: var(--text) !important;
+}
+
+.light-mode .nav-mini {
+  background: rgba(0, 102, 204, 0.08) !important;
+  border: 1px solid rgba(0, 102, 204, 0.2) !important;
+}
+
+.light-mode .theme-toggle {
+  border-color: rgba(0, 102, 204, 0.2) !important;
+  background: rgba(0, 102, 204, 0.05) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .theme-toggle:hover {
+  background: rgba(0, 102, 204, 0.12) !important;
+  color: #0066cc !important;
+  border-color: #0066cc !important;
+}
+
+.light-mode .card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  box-shadow: 0 4px 15px rgba(0, 102, 204, 0.08) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .card:hover {
+  border-color: rgba(0, 102, 204, 0.3) !important;
+  box-shadow: 0 8px 24px rgba(0, 102, 204, 0.12) !important;
+}
+
+.light-mode .link {
+  color: var(--muted) !important;
+}
+
+.light-mode .link:hover {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: #0066cc !important;
+  border-color: rgba(0, 102, 204, 0.2) !important;
+}
+
+.light-mode .link.primary {
+  background: linear-gradient(135deg, #0066cc 0%, #004c99 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(0, 102, 204, 0.2) !important;
+}
+
+.light-mode .link.primary:hover {
+  box-shadow: 0 6px 20px rgba(0, 102, 204, 0.35) !important;
+}
+
+.light-mode h2,
+.light-mode h3,
+.light-mode h4,
+.light-mode h5,
+.light-mode h6 {
+  color: var(--text) !important;
+}
+
+.light-mode body {
+  background: #f8f9fa !important;
+  color: var(--text) !important;
+}
+
+.light-mode .hero {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  box-shadow: 0 4px 15px rgba(0, 102, 204, 0.08) !important;
+}
+
+.light-mode .hero h1 {
+  background: linear-gradient(135deg, var(--text) 0%, #0066cc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.light-mode .hero-actions {
+  background: rgba(0, 102, 204, 0.05) !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  box-shadow: inset 0 1px 0 rgba(0, 102, 204, 0.08) !important;
+}
+
+.light-mode .hero-actions .link:not(.primary) {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: #0066cc !important;
+  border: 1px solid rgba(0, 102, 204, 0.2) !important;
+}
+
+.light-mode .hero-actions .link:not(.primary):hover {
+  background: rgba(0, 102, 204, 0.15) !important;
+  border-color: rgba(0, 102, 204, 0.35) !important;
+}
+
+/* Keep hero green left border in light mode */
+.light-mode .hero::before {
+  opacity: 1 !important;
+  display: block !important;
+}
+
+/* Light mode for buttons and interactive elements */
+.light-mode button,
+.light-mode input[type="button"],
+.light-mode input[type="submit"] {
+  color: var(--text) !important;
+}
+
+.light-mode input[type="text"],
+.light-mode input[type="email"],
+.light-mode input[type="password"],
+.light-mode input[type="number"],
+.light-mode textarea,
+.light-mode select {
+  background: white !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+}
+
+.light-mode input[type="text"]:focus,
+.light-mode input[type="email"]:focus,
+.light-mode input[type="password"]:focus,
+.light-mode input[type="number"]:focus,
+.light-mode textarea:focus,
+.light-mode select:focus {
+  border-color: #0066cc !important;
+  background: white !important;
+  color: var(--text) !important;
+}
+
+/* Light mode for tables and data elements */
+.light-mode table {
+  background: white !important;
+  color: var(--text) !important;
+}
+
+.light-mode table thead {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: var(--text) !important;
+}
+
+.light-mode table tr:hover {
+  background: rgba(0, 102, 204, 0.05) !important;
+}
+
+.light-mode table td,
+.light-mode table th {
+  border-color: rgba(0, 102, 204, 0.15) !important;
+  color: var(--text) !important;
+}
+
+/* Light mode for modals and overlays */
+.light-mode .modal,
+.light-mode dialog {
+  background: white !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+}
+
+/* Light mode for alerts and notifications */
+.light-mode .alert {
+  background: rgba(0, 102, 204, 0.08) !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  color: var(--text) !important;
+}
+
+/* Light mode for badges and tags */
+.light-mode .badge,
+.light-mode .tag {
+  background: rgba(0, 102, 204, 0.15) !important;
+  color: #0066cc !important;
+}
+
+/* Light mode for dropdowns and menus */
+.light-mode .dropdown,
+.light-mode .menu {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .dropdown-item:hover,
+.light-mode .menu-item:hover {
+  background: rgba(0, 102, 204, 0.08) !important;
+}
+
+/* Light mode for scrollbars */
+.light-mode ::-webkit-scrollbar {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-mode ::-webkit-scrollbar-thumb {
+  background: rgba(0, 102, 204, 0.3) !important;
+}
+
+.light-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 102, 204, 0.5) !important;
+}
+
+/* Light mode for mobile menu */
+.light-mode .mobile-menu {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .mobile-menu a {
+  color: var(--text) !important;
+  border-bottom: 1px solid rgba(0, 102, 204, 0.1) !important;
+}
+
+.light-mode .mobile-menu a:hover {
+  background: rgba(0, 102, 204, 0.08) !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - OVERVIEW WIDGETS & STATS
+   ═════════════════════════════════════════════════════════════════════════════ */
+.light-mode .overview-grid,
+.light-mode .stats-grid {
+  color: var(--text) !important;
+}
+
+.light-mode .stat-card,
+.light-mode .overview-card,
+.light-mode .metric-card {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.08) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .stat-card:hover,
+.light-mode .overview-card:hover,
+.light-mode .metric-card:hover {
+  border-color: rgba(0, 102, 204, 0.3) !important;
+  box-shadow: 0 6px 20px rgba(0, 102, 204, 0.12) !important;
+}
+
+.light-mode .stat-value,
+.light-mode .metric-value {
+  color: var(--text) !important;
+}
+
+.light-mode .stat-label,
+.light-mode .metric-label {
+  color: var(--muted) !important;
+}
+
+.light-mode .system-pill {
+  background: rgba(0, 102, 204, 0.08) !important;
+  border: 1px solid rgba(0, 102, 204, 0.2) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .system-pill.running {
+  background: rgba(40, 167, 69, 0.1) !important;
+  border-color: rgba(40, 167, 69, 0.3) !important;
+  color: #28a745 !important;
+}
+
+.light-mode .system-pill.paused {
+  background: rgba(220, 53, 69, 0.1) !important;
+  border-color: rgba(220, 53, 69, 0.3) !important;
+  color: #dc3545 !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - FEATURE HUB CARDS
+   ═════════════════════════════════════════════════════════════════════════════ */
+.light-mode .feature-card {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.08) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .feature-card:hover {
+  border-color: rgba(0, 102, 204, 0.3) !important;
+  box-shadow: 0 8px 24px rgba(0, 102, 204, 0.15) !important;
+  transform: translateY(-4px) !important;
+}
+
+.light-mode .feature-card h3,
+.light-mode .feature-card h4 {
+  color: var(--text) !important;
+}
+
+.light-mode .feature-card p,
+.light-mode .feature-card li {
+  color: var(--muted) !important;
+}
+
+.light-mode .feature-grid {
+  gap: 20px;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - ADMIN PANEL & TOOLS
+   ═════════════════════════════════════════════════════════════════════════════ */
+.light-mode .admin-panel,
+.light-mode .admin-section,
+.light-mode .admin-card {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.08) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .admin-sidebar {
+  background: white !important;
+  border-right: 1px solid rgba(0, 102, 204, 0.15) !important;
+}
+
+.light-mode .admin-sidebar button,
+.light-mode .admin-sidebar .section-btn {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+}
+
+.light-mode .admin-sidebar button:hover,
+.light-mode .admin-sidebar .section-btn:hover {
+  background: rgba(0, 102, 204, 0.15) !important;
+  color: #0066cc !important;
+}
+
+.light-mode .admin-sidebar button.active,
+.light-mode .admin-sidebar .section-btn.active {
+  background: linear-gradient(135deg, #0066cc 0%, #004c99 100%) !important;
+  color: white !important;
+}
+
+.light-mode .admin-table,
+.light-mode .audit-table {
+  background: white !important;
+  color: var(--text) !important;
+}
+
+.light-mode .admin-table thead,
+.light-mode .audit-table thead {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .admin-table tbody tr:hover,
+.light-mode .audit-table tbody tr:hover {
+  background: rgba(0, 102, 204, 0.05) !important;
+}
+
+.light-mode .admin-table td,
+.light-mode .admin-table th,
+.light-mode .audit-table td,
+.light-mode .audit-table th {
+  border-color: rgba(0, 102, 204, 0.15) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .status-badge {
+  background: rgba(0, 102, 204, 0.15) !important;
+  color: #0066cc !important;
+}
+
+.light-mode .status-badge.error,
+.light-mode .status-badge.erreur {
+  background: rgba(220, 53, 69, 0.15) !important;
+  color: #dc3545 !important;
+}
+
+.light-mode .status-badge.success {
+  background: rgba(40, 167, 69, 0.15) !important;
+  color: #28a745 !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - SETTINGS PAGE
+   ═════════════════════════════════════════════════════════════════════════════ */
+.light-mode .settings-sidebar {
+  background: rgba(0, 102, 204, 0.03) !important;
+  border-right: 1px solid rgba(0, 102, 204, 0.15) !important;
+}
+
+.light-mode .settings-sidebar button {
+  background: transparent !important;
+  color: var(--text) !important;
+  border: none !important;
+}
+
+.light-mode .settings-sidebar button:hover {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: #0066cc !important;
+}
+
+.light-mode .settings-sidebar button.active {
+  background: rgba(0, 102, 204, 0.15) !important;
+  color: #0066cc !important;
+  font-weight: 600 !important;
+}
+
+.light-mode .settings-section {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .settings-group label {
+  color: var(--text) !important;
+  font-weight: 600 !important;
+}
+
+.light-mode .settings-description {
+  color: var(--muted) !important;
+}
+
+.light-mode .form-control,
+.light-mode .form-input {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.2) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .form-control:focus,
+.light-mode .form-input:focus {
+  border-color: #0066cc !important;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1) !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - CHART IMPROVEMENTS (Better visibility)
+   ═════════════════════════════════════════════════════════════════════════════ */
+.light-mode canvas {
+  background: transparent !important;
+}
+
+/* Update chart colors for light mode - handled by JS but ensure container is visible */
+.light-mode .chart-wrapper {
+  background: white !important;
+}
+
+.light-mode .chart-container {
+  background: white !important;
+}
+
+/* Light mode for quality indicators */
+.light-mode .quality {
+  font-weight: 700 !important;
+}
+
+.light-mode .quality.bon,
+.light-mode .quality.good {
+  color: #28a745 !important;
+}
+
+.light-mode .quality.moyen,
+.light-mode .quality.medium {
+  color: #ffc107 !important;
+}
+
+.light-mode .quality.mauvais,
+.light-mode .quality.bad {
+  color: #dc3545 !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - SIMULATOR PAGE
+   ═════════════════════════════════════════════════════════════════════════════ */
+.light-mode .simulator-card {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .scenario-card {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+  color: var(--text) !important;
+}
+
+.light-mode .scenario-card:hover {
+  border-color: rgba(0, 102, 204, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.12) !important;
+}
+
+.light-mode .scenario-card.active {
+  border-color: #0066cc !important;
+  background: rgba(0, 102, 204, 0.05) !important;
+  box-shadow: 0 4px 15px rgba(0, 102, 204, 0.15) !important;
+}
+
+.light-mode .scenario-card h3 {
+  color: var(--text) !important;
+}
+
+.light-mode .scenario-card p {
+  color: var(--muted) !important;
+}
+
+.light-mode .control-panel {
+  background: white !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+}
+
+.light-mode .btn-pause,
+.light-mode .btn-play,
+.light-mode .btn-stop {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(0, 102, 204, 0.2) !important;
+}
+
+.light-mode .btn-pause:hover,
+.light-mode .btn-play:hover,
+.light-mode .btn-stop:hover {
+  background: rgba(0, 102, 204, 0.15) !important;
+  color: #0066cc !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - VALUE DISPLAYS & PPM
+   ═════════════════════════════════════════════════════════════════════════════ */
+.light-mode .value,
+.light-mode .ppm-value,
+.light-mode #value {
+  color: var(--text) !important;
+  font-weight: 700 !important;
+}
+
+.light-mode .value-wrapper {
+  color: var(--text) !important;
+}
+
+.light-mode #trend-info {
+  color: var(--muted) !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - OVERLAYS & INDICATORS
+   ═════════════════════════════════════════════════════════════════════════════ */
+/* Note: Paused and sensor overlays keep their original dark styling in both themes */
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - EXPORT & ACTION BUTTONS
+   ═════════════════════════════════════════════════════════════════════════════ */
+.light-mode .btn-export,
+.light-mode button.export,
+.light-mode #export {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: #0066cc !important;
+  border: 1px solid rgba(0, 102, 204, 0.2) !important;
+}
+
+.light-mode .btn-export:hover,
+.light-mode button.export:hover,
+.light-mode #export:hover {
+  background: rgba(0, 102, 204, 0.15) !important;
+  border-color: #0066cc !important;
+}
+
+.light-mode #reset-btn {
+  background: rgba(0, 102, 204, 0.08) !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(0, 102, 204, 0.15) !important;
+}
+
+.light-mode #reset-btn:hover {
+  background: rgba(0, 102, 204, 0.15) !important;
+  color: #0066cc !important;
+  border-color: #0066cc !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── 
@@ -622,7 +1249,7 @@ body[style*="--bg: #ffffff"] #alert-log-panel {
 }
 
 .overview-widget {
-  background: var(--card);
+  background: var(--card);  
   border-radius: 14px;
   padding: 18px;
   border: 1px solid var(--border-light);
@@ -834,7 +1461,7 @@ body[style*="--bg: #ffffff"] #alert-log-panel {
 .co2-track {
   width: 8px;
   height: 140px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 999px;
   position: relative;
   overflow: hidden;
@@ -1171,6 +1798,35 @@ input[type="range"]::-moz-range-thumb:hover {
   display: flex;
   gap: 15px;
   align-items: center;
+}
+.source-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 4px 12px rgba(0,0,0,0.18);
+}
+.source-toggle label {
+  font-weight: 600;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+}
+.source-toggle select {
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: rgba(13, 17, 35, 0.8);
+  color: #e5e7eb;
+  font-weight: 600;
+  min-width: 140px;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #e5e7eb 50%), linear-gradient(135deg, #e5e7eb 50%, transparent 50%);
+  background-position: calc(100% - 18px) center, calc(100% - 12px) center;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
 }
 
 button {
@@ -1784,9 +2440,121 @@ canvas {
   }
 }
 
+/* Dark mode enhancements */
+@media (prefers-color-scheme: dark) {
+  /* Button styles for dark mode */
+  html:not(.light-mode) button:not([class*="active"]) {
+    background: linear-gradient(135deg, rgba(30, 30, 63, 0.8) 0%, rgba(42, 42, 90, 0.6) 100%);
+    color: var(--text);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+  }
+
+  html:not(.light-mode) button:not([class*="active"]):hover {
+    border-color: rgba(102, 126, 234, 0.5);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+  }
+
+  /* Preset buttons */
+  html:not(.light-mode) .preset-btn {
+    background: linear-gradient(135deg, rgba(30, 30, 63, 0.8) 0%, rgba(42, 42, 90, 0.6) 100%);
+    color: var(--text);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+  }
+
+  html:not(.light-mode) .preset-btn:hover {
+    border-color: rgba(102, 126, 234, 0.5);
+    background: linear-gradient(135deg, rgba(30, 30, 63, 0.95) 0%, rgba(42, 42, 90, 0.8) 100%);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+  }
+
+  html:not(.light-mode) .preset-btn.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: #667eea;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  }
+
+  /* Analytics control buttons */
+  html:not(.light-mode) .btn-secondary {
+    background: linear-gradient(135deg, rgba(30, 30, 63, 0.8) 0%, rgba(42, 42, 90, 0.6) 100%);
+    color: var(--text);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+  }
+
+  html:not(.light-mode) .btn-secondary:hover {
+    border-color: rgba(102, 126, 234, 0.5);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+  }
+
+  html:not(.light-mode) .btn-secondary.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: #667eea;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  }
+
+  /* Overview widgets dark theme */
+  html:not(.light-mode) .overview-widget {
+    background: linear-gradient(135deg, #1e1e3f 0%, #2a2a5a 100%);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  }
+
+  html:not(.light-mode) .overview-widget:hover {
+    border-color: rgba(102, 126, 234, 0.5);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+  }
+
+  /* Air health card dark theme */
+  html:not(.light-mode) .air-health {
+    background: linear-gradient(135deg, #1e1e3f 0%, #2a2a5a 100%);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  }
+
+  html:not(.light-mode) .air-health:hover {
+    border-color: rgba(102, 126, 234, 0.5);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+  }
+
+  /* Tables dark theme */
+  html:not(.light-mode) .admin-table thead {
+    background: linear-gradient(135deg, rgba(30, 30, 63, 0.6) 0%, rgba(42, 42, 90, 0.4) 100%);
+    border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+  }
+
+  html:not(.light-mode) .admin-table tbody tr {
+    border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  }
+
+  html:not(.light-mode) .admin-table tbody tr:hover {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.05) 100%);
+  }
+
+  html:not(.light-mode) .admin-table th {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  html:not(.light-mode) .admin-table td {
+    color: var(--text);
+  }
+}
+
 /* Dark mode support */
 @media (prefers-color-scheme: light) {
-  :root {
+  /* Only apply when no explicit dark-mode class is set */
+  html:not(.dark-mode) :root {
     --bg: #f8f9fa;
     --card: #ffffff;
     --text: #1a1f36;
@@ -1835,6 +2603,73 @@ canvas {
 
   .theme-toggle {
     color: #ffc107;
+  }
+
+  /* Features Hub Light Mode */
+  .feature-card {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .feature-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .feature-highlights {
+    background: rgba(255, 255, 255, 0.6) !important;
+    border-color: rgba(0, 102, 204, 0.15);
+  }
+
+  /* Admin Tools Light Mode */
+  .admin-table tbody tr:hover {
+    background: linear-gradient(135deg, rgba(0, 102, 204, 0.03) 0%, rgba(0, 102, 204, 0.01) 100%);
+  }
+
+  .stat-box {
+    background: linear-gradient(135deg, rgba(0, 102, 204, 0.05) 0%, rgba(0, 102, 204, 0.02) 100%);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .section-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .policy-card,
+  .backup-item,
+  .stat-card,
+  .detail-section li,
+  .status-item,
+  .sim-stat,
+  .scenario-card {
+    background: linear-gradient(135deg, rgba(0, 102, 204, 0.03) 0%, rgba(0, 102, 204, 0.01) 100%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .scenario-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Modal and popup backgrounds */
+  .modal, .popup {
+    background: rgba(248, 249, 250, 0.98);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Tab buttons */
+  .tab-btn {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .tab-btn:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Input fields light mode */
+  input, select, textarea {
+    background: linear-gradient(135deg, #ffffff 0%, rgba(248, 249, 250, 0.8) 100%);
+  }
+
+  input:focus, select:focus, textarea:focus {
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
   }
 }
 

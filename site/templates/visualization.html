@@ -5,6 +5,25 @@
   <p class="hint">Visualisations interactives des données CO₂</p>
 </section>
 
+<!-- Data Source Selector -->
+<section class="card" style="margin-bottom: 24px;">
+  <h3>🔀 Source des Données</h3>
+  <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px;">
+    <button id="source-live-btn" class="btn btn-secondary active" data-source="live" style="flex: 1; min-width: 150px;">
+      🔴 Données en Direct
+    </button>
+    <button id="source-simulation-btn" class="btn btn-secondary" data-source="simulation" style="flex: 1; min-width: 150px;">
+      🎮 Données Simulées
+    </button>
+    <button id="source-import-btn" class="btn btn-secondary" data-source="import" style="flex: 1; min-width: 150px;">
+      📥 Données Importées
+    </button>
+  </div>
+  <p class="hint" style="margin-top: 12px;" id="source-description">
+    📡 Affichage des données en temps réel depuis le capteur
+  </p>
+</section>
+
 <div class="analytics-controls" style="margin-bottom: 24px;">
   <div style="display: flex; gap: 12px; flex-wrap: wrap;">
     <button id="chart-daily-btn" class="btn btn-secondary active" data-chart="daily">📈 Moyennes Quotidiennes</button>
@@ -49,45 +68,127 @@
 </section>
 
 <!-- CSV Import Section -->
-<section class="card">
+<section class="card" id="csv-import-section" style="display: none;">
   <h3>📥 Importer des Données CO₂</h3>
   <p class="hint">Chargez un fichier CSV avec les colonnes: timestamp, ppm</p>
   
-  <div style="margin-bottom: 16px;">
-    <input 
-      type="file" 
-      id="csv_import_file" 
-      accept=".csv"
-      style="
-        padding: 8px 12px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px dashed rgba(61, 217, 143, 0.3);
-        color: #e8ecf1;
-        border-radius: 6px;
-        font-size: 0.9rem;
-        width: 100%;
-        cursor: pointer;
-      "
-    />
+  <style>
+    .file-input-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: block;
+    }
+    
+    .file-input-wrapper input[type="file"] {
+      position: absolute;
+      left: -9999px;
+      opacity: 0;
+    }
+    
+    .file-input-label {
+      display: block;
+      padding: 24px 20px;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.08) 100%);
+      border: 2px dashed var(--accent);
+      border-radius: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+      color: var(--text);
+    }
+    
+    .file-input-label:hover {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.25) 0%, rgba(118, 75, 162, 0.15) 100%);
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+    
+    .file-input-label.drag-over {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.35) 0%, rgba(118, 75, 162, 0.25) 100%);
+      border-color: #667eea;
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.25);
+      transform: scale(1.01);
+    }
+    
+    .file-input-icon {
+      display: block;
+      font-size: 2rem;
+      margin-bottom: 8px;
+      transition: all 0.3s ease;
+    }
+    
+    .file-input-label.drag-over .file-input-icon {
+      transform: scale(1.2);
+      animation: bounce 0.6s ease-in-out infinite;
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: scale(1.2) translateY(0); }
+      50% { transform: scale(1.2) translateY(-8px); }
+    }
+    
+    .file-input-text {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+    
+    .file-input-hint {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    
+    .file-name-display {
+      display: none;
+      font-size: 0.9rem;
+      color: var(--accent);
+      margin-top: 8px;
+      font-weight: 600;
+    }
+  </style>
+
+  <div style="margin-bottom: 16px;" id="dropZone">
+    <label class="file-input-wrapper">
+      <input 
+        type="file" 
+        id="csv_import_file" 
+        accept=".csv"
+        onchange="updateFileName(this)"
+      />
+      <div class="file-input-label" id="fileInputLabel">
+        <span class="file-input-icon">📁</span>
+        <span class="file-input-text">Cliquez pour choisir un fichier</span>
+        <span class="file-input-hint">ou déposez-le ici</span>
+        <div class="file-name-display" id="fileName"></div>
+      </div>
+    </label>
   </div>
   
   <button 
     onclick="importCSV()"
     style="
       width: 100%;
-      padding: 10px 16px;
-      background: rgba(61, 217, 143, 0.2);
-      border: 1px solid rgba(61, 217, 143, 0.3);
-      color: #3dd98f;
-      border-radius: 6px;
+      padding: 14px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      border-radius: 10px;
       cursor: pointer;
-      font-weight: 600;
-      transition: all 0.2s ease;
+      font-weight: 700;
+      font-size: 1rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     "
-    onmouseover="this.style.opacity='0.8'"
-    onmouseout="this.style.opacity='1'"
+    onmouseover="this.style.boxShadow='0 8px 24px rgba(102, 126, 234, 0.45)'; this.style.transform='translateY(-3px)'"
+    onmouseout="this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'; this.style.transform='translateY(0)'"
+    onmousedown="this.style.transform='translateY(-1px)'"
   >
-    ⬆️ Charger le fichier
+    ⬆️ Charger le fichier CSV
   </button>
   
   <div id="csv_import_result" style="
@@ -108,6 +209,9 @@ let comparisonChartInstance = null;
 let heatmapChartInstance = null;
 let hourlyChartInstance = null;
 
+// Data source tracking
+let currentDataSource = 'live'; // 'live', 'simulation', or 'import'
+
 // Chart colors
 const colors = {
   good: '#3dd98f',
@@ -117,10 +221,35 @@ const colors = {
   accent: '#a78bfa'
 };
 
+// Get API endpoint based on data source
+function getApiEndpoint(endpoint) {
+  // Add source parameter to endpoint
+  const separator = endpoint.includes('?') ? '&' : '?';
+  return `${endpoint}${separator}source=${currentDataSource}`;
+}
+
 async function loadDailyChart() {
   try {
-    const response = await fetch('/api/analytics/daily-comparison');
+    const response = await fetch(getApiEndpoint('/api/analytics/daily-comparison'));
     const data = await response.json();
+    
+    // Check if data is empty
+    if (!data.data || data.data.length === 0) {
+      const sourceNames = {
+        'live': 'en temps réel',
+        'simulation': 'de simulation',
+        'import': 'importées'
+      };
+      const sourceName = sourceNames[currentDataSource] || currentDataSource;
+      document.getElementById('daily-stats').innerHTML = `
+        <div style="padding: 20px; text-align: center; color: var(--muted); grid-column: 1/-1;">
+          <div style="font-size: 2rem; margin-bottom: 8px;">📄</div>
+          <div style="font-size: 1rem;">Aucune donnée ${sourceName} disponible</div>
+        </div>
+      `;
+      // Keep existing chart; just return
+      return;
+    }
     
     const ctx = document.getElementById('dailyChart').getContext('2d');
     
@@ -167,47 +296,59 @@ async function loadDailyChart() {
         plugins: {
           legend: {
             display: true,
-            labels: { color: 'var(--text)', font: { size: 12 } }
+            labels: { color: 'var(--text)', font: { size: 12, weight: 600 } }
           },
           tooltip: {
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
             titleColor: 'var(--text)',
             bodyColor: 'var(--text)',
-            padding: 10,
-            cornerRadius: 6
+            padding: 12,
+            cornerRadius: 8,
+            titleFont: { weight: 'bold', size: 13 },
+            bodyFont: { size: 12 },
+            borderColor: 'rgba(102, 126, 234, 0.3)',
+            borderWidth: 1
           }
         },
         scales: {
           y: {
             beginAtZero: false,
-            ticks: { color: 'var(--muted)' },
-            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            ticks: { color: 'var(--text)', font: { size: 11, weight: 500 } },
+            grid: { color: 'rgba(255, 255, 255, 0.08)' }
           },
           x: {
-            ticks: { color: 'var(--muted)' },
-            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+            ticks: { color: 'var(--text)', font: { size: 11, weight: 500 } },
+            grid: { color: 'rgba(255, 255, 255, 0.04)' }
           }
         }
       }
     });
     
     // Display stats
-    const avgs = data.data.map(d => d.avg_ppm).filter(v => v !== null);
-    const statsHtml = `
-      <div style="padding: 12px; background: rgba(61, 217, 143, 0.1); border-radius: 8px; border-left: 4px solid var(--good);">
-        <div style="font-size: 0.85rem; color: var(--muted);">Moyenne</div>
-        <div style="font-weight: 600; font-size: 1.3rem;">${(avgs.reduce((a, b) => a + b, 0) / avgs.length).toFixed(0)} ppm</div>
-      </div>
-      <div style="padding: 12px; background: rgba(249, 199, 79, 0.1); border-radius: 8px; border-left: 4px solid var(--medium);">
-        <div style="font-size: 0.85rem; color: var(--muted);">Min</div>
-        <div style="font-weight: 600; font-size: 1.3rem;">${Math.min(...avgs).toFixed(0)} ppm</div>
-      </div>
-      <div style="padding: 12px; background: rgba(239, 83, 80, 0.1); border-radius: 8px; border-left: 4px solid var(--bad);">
-        <div style="font-size: 0.85rem; color: var(--muted);">Max</div>
-        <div style="font-weight: 600; font-size: 1.3rem;">${Math.max(...avgs).toFixed(0)} ppm</div>
-      </div>
-    `;
-    document.getElementById('daily-stats').innerHTML = statsHtml;
+    const avgs = data.data.map(d => d.avg_ppm).filter(v => v !== null && v !== undefined);
+    if (avgs.length > 0) {
+      const avgValue = (avgs.reduce((a, b) => a + b, 0) / avgs.length).toFixed(0);
+      const minValue = Math.min(...avgs).toFixed(0);
+      const maxValue = Math.max(...avgs).toFixed(0);
+      
+      const statsHtml = `
+        <div style="padding: 12px; background: rgba(61, 217, 143, 0.1); border-radius: 8px; border-left: 4px solid var(--good);">
+          <div style="font-size: 0.85rem; color: var(--muted);">Moyenne</div>
+          <div style="font-weight: 600; font-size: 1.3rem;">${avgValue} ppm</div>
+        </div>
+        <div style="padding: 12px; background: rgba(249, 199, 79, 0.1); border-radius: 8px; border-left: 4px solid var(--medium);">
+          <div style="font-size: 0.85rem; color: var(--muted);">Min</div>
+          <div style="font-weight: 600; font-size: 1.3rem;">${minValue} ppm</div>
+        </div>
+        <div style="padding: 12px; background: rgba(239, 83, 80, 0.1); border-radius: 8px; border-left: 4px solid var(--bad);">
+          <div style="font-size: 0.85rem; color: var(--muted);">Max</div>
+          <div style="font-weight: 600; font-size: 1.3rem;">${maxValue} ppm</div>
+        </div>
+      `;
+      document.getElementById('daily-stats').innerHTML = statsHtml;
+    } else {
+      document.getElementById('daily-stats').innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--muted);">Aucune statistique disponible</div>';
+    }
   } catch (error) {
     console.error('Error loading daily chart:', error);
   }
@@ -215,8 +356,22 @@ async function loadDailyChart() {
 
 async function loadComparisonChart(type = 'week') {
   try {
-    const response = await fetch(`/api/analytics/compare-periods?type=${type}`);
+    const response = await fetch(getApiEndpoint(`/api/analytics/compare-periods?type=${type}`));
     const data = await response.json();
+    
+    // Handle empty data
+    const currentData = {
+      avg: data.current?.avg || 0,
+      min: data.current?.min || 0,
+      max: data.current?.max || 0,
+      count: data.current?.count || 0
+    };
+    const previousData = {
+      avg: data.previous?.avg || 0,
+      min: data.previous?.min || 0,
+      max: data.previous?.max || 0,
+      count: data.previous?.count || 0
+    };
     
     const ctx = document.getElementById('comparisonChart').getContext('2d');
     
@@ -231,21 +386,21 @@ async function loadComparisonChart(type = 'week') {
         datasets: [
           {
             label: 'Moyenne (ppm)',
-            data: [data.current.avg, data.previous.avg],
+            data: [currentData.avg, previousData.avg],
             backgroundColor: [colors.primary, `${colors.primary}60`],
             borderColor: colors.primary,
             borderWidth: 1
           },
           {
             label: 'Min (ppm)',
-            data: [data.current.min, data.previous.min],
+            data: [currentData.min, previousData.min],
             backgroundColor: [colors.good, `${colors.good}60`],
             borderColor: colors.good,
             borderWidth: 1
           },
           {
             label: 'Max (ppm)',
-            data: [data.current.max, data.previous.max],
+            data: [currentData.max, previousData.max],
             backgroundColor: [colors.critical, `${colors.critical}60`],
             borderColor: colors.critical,
             borderWidth: 1
@@ -258,17 +413,28 @@ async function loadComparisonChart(type = 'week') {
         plugins: {
           legend: {
             display: true,
-            labels: { color: 'var(--text)' }
+            labels: { color: 'var(--text)', font: { size: 12, weight: 600 } }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            titleColor: 'var(--text)',
+            bodyColor: 'var(--text)',
+            padding: 12,
+            cornerRadius: 8,
+            titleFont: { weight: 'bold', size: 13 },
+            bodyFont: { size: 12 },
+            borderColor: 'rgba(102, 126, 234, 0.3)',
+            borderWidth: 1
           }
         },
         scales: {
           y: {
             beginAtZero: true,
-            ticks: { color: 'var(--muted)' },
-            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            ticks: { color: 'var(--text)', font: { size: 11, weight: 500 } },
+            grid: { color: 'rgba(255, 255, 255, 0.08)' }
           },
           x: {
-            ticks: { color: 'var(--muted)' },
+            ticks: { color: 'var(--text)', font: { size: 11, weight: 500 } },
             grid: { display: false }
           }
         }
@@ -276,9 +442,26 @@ async function loadComparisonChart(type = 'week') {
     });
     
     // Display stats
-    const diffAvg = data.differences.avg_percent;
-    const diffMin = data.differences.min_percent;
-    const diffMax = data.differences.max_percent;
+    const diffAvg = data.differences?.avg_percent || 0;
+    const diffMin = data.differences?.min_percent || 0;
+    const diffMax = data.differences?.max_percent || 0;
+    
+    // Check if there's any data
+    if (currentData.count === 0 && previousData.count === 0) {
+      const sourceNames = {
+        'live': 'en temps réel',
+        'simulation': 'de simulation',
+        'import': 'importées'
+      };
+      const sourceName = sourceNames[currentDataSource] || currentDataSource;
+      document.getElementById('comparison-stats').innerHTML = `
+        <div style="padding: 20px; text-align: center; color: var(--muted); grid-column: 1/-1;">
+          <div style="font-size: 2rem; margin-bottom: 8px;">📄</div>
+          <div style="font-size: 1rem;">Aucune donnée ${sourceName} disponible pour la comparaison</div>
+        </div>
+      `;
+      return;
+    }
     
     const arrow = (val) => val > 0 ? '📈' : val < 0 ? '📉' : '➡️';
     const color = (val) => val > 0 ? 'var(--bad)' : 'var(--good)';
@@ -305,8 +488,13 @@ async function loadComparisonChart(type = 'week') {
 
 async function loadHeatmapChart() {
   try {
-    const response = await fetch('/api/analytics/trend');
+    const response = await fetch(getApiEndpoint('/api/analytics/trend'));
     const data = await response.json();
+    
+    // Check if data is empty
+    if (!data.data || data.data.length === 0) {
+      return;
+    }
     
     // Group by hour of day
     const heatmapData = {};
@@ -352,16 +540,25 @@ async function loadHeatmapChart() {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false }
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            titleColor: 'var(--text)',
+            bodyColor: 'var(--text)',
+            padding: 12,
+            cornerRadius: 8,
+            borderColor: 'rgba(102, 126, 234, 0.3)',
+            borderWidth: 1
+          }
         },
         scales: {
           y: {
             beginAtZero: true,
-            ticks: { color: 'var(--muted)' },
-            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            ticks: { color: 'var(--text)', font: { size: 11, weight: 500 } },
+            grid: { color: 'rgba(255, 255, 255, 0.08)' }
           },
           x: {
-            ticks: { color: 'var(--muted)' },
+            ticks: { color: 'var(--text)', font: { size: 11, weight: 500 } },
             grid: { display: false }
           }
         }
@@ -374,8 +571,13 @@ async function loadHeatmapChart() {
 
 async function loadHourlyChart() {
   try {
-    const response = await fetch('/api/analytics/trend');
+    const response = await fetch(getApiEndpoint('/api/analytics/trend'));
     const data = await response.json();
+    
+    // Check if data is empty
+    if (!data.data || data.data.length === 0) {
+      return;
+    }
     
     const ctx = document.getElementById('hourlyChart').getContext('2d');
     
@@ -400,17 +602,28 @@ async function loadHourlyChart() {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: true, labels: { color: 'var(--text)' } }
+          legend: { display: true, labels: { color: 'var(--text)', font: { size: 12, weight: 600 } } },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            titleColor: 'var(--text)',
+            bodyColor: 'var(--text)',
+            padding: 12,
+            cornerRadius: 8,
+            titleFont: { weight: 'bold', size: 13 },
+            bodyFont: { size: 12 },
+            borderColor: 'rgba(102, 126, 234, 0.3)',
+            borderWidth: 1
+          }
         },
         scales: {
           y: {
             beginAtZero: false,
-            ticks: { color: 'var(--muted)' },
-            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            ticks: { color: 'var(--text)', font: { size: 11, weight: 500 } },
+            grid: { color: 'rgba(255, 255, 255, 0.08)' }
           },
           x: {
-            ticks: { color: 'var(--muted)' },
-            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+            ticks: { color: 'var(--text)', font: { size: 11, weight: 500 } },
+            grid: { color: 'rgba(255, 255, 255, 0.04)' }
           }
         }
       }
@@ -448,8 +661,113 @@ document.querySelectorAll('input[name="comparison-type"]').forEach(radio => {
   });
 });
 
+// Data source switching
+document.querySelectorAll('[data-source]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const source = this.getAttribute('data-source');
+    
+    // Update active state
+    document.querySelectorAll('[data-source]').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    
+    // Update current data source
+    currentDataSource = source;
+    
+    // Update description
+    const descriptions = {
+      'live': '📡 Affichage des données en temps réel depuis le capteur',
+      'simulation': '🎮 Affichage des données de simulation pour les tests',
+      'import': '📥 Affichage des données importées depuis les fichiers CSV'
+    };
+    document.getElementById('source-description').textContent = descriptions[source];
+    
+    // Show/hide CSV import section based on data source
+    const csvImportSection = document.getElementById('csv-import-section');
+    if (source === 'import') {
+      csvImportSection.style.display = 'block';
+    } else {
+      csvImportSection.style.display = 'none';
+    }
+    
+    // Reload current chart with new data source
+    const activeChart = document.querySelector('[data-chart].active');
+    if (activeChart) {
+      const chartType = activeChart.getAttribute('data-chart');
+      if (chartType === 'daily') loadDailyChart();
+      else if (chartType === 'comparison') loadComparisonChart();
+      else if (chartType === 'heatmap') loadHeatmapChart();
+      else if (chartType === 'hourly') loadHourlyChart();
+    }
+  });
+});
+
 // Load initial chart
 loadDailyChart();
+
+// Setup drag and drop
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('csv_import_file');
+const fileInputLabel = document.getElementById('fileInputLabel');
+
+// Prevent default drag behaviors
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  dropZone.addEventListener(eventName, preventDefaults, false);
+  document.body.addEventListener(eventName, preventDefaults, false);
+});
+
+function preventDefaults(e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+// Highlight drop zone when item is dragged over it
+['dragenter', 'dragover'].forEach(eventName => {
+  dropZone.addEventListener(eventName, highlight, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+  dropZone.addEventListener(eventName, unhighlight, false);
+});
+
+function highlight(e) {
+  fileInputLabel.classList.add('drag-over');
+}
+
+function unhighlight(e) {
+  fileInputLabel.classList.remove('drag-over');
+}
+
+// Handle dropped files
+dropZone.addEventListener('drop', handleDrop, false);
+
+function handleDrop(e) {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  
+  if (files.length > 0) {
+    const file = files[0];
+    if (file.name.endsWith('.csv')) {
+      fileInput.files = files;
+      updateFileName(fileInput);
+    } else {
+      const resultDiv = document.getElementById('csv_import_result');
+      resultDiv.style.display = 'block';
+      resultDiv.style.color = '#ff6b6b';
+      resultDiv.textContent = '⚠️ Veuillez déposer un fichier CSV valide';
+    }
+  }
+}
+
+// Update file name display
+function updateFileName(input) {
+  const fileNameDisplay = document.getElementById('fileName');
+  if (input.files && input.files[0]) {
+    fileNameDisplay.textContent = `✓ ${input.files[0].name}`;
+    fileNameDisplay.style.display = 'block';
+  } else {
+    fileNameDisplay.style.display = 'none';
+  }
+}
 
 // CSV Import Function
 async function importCSV() {
@@ -491,7 +809,7 @@ async function importCSV() {
       // Reload charts after import
       setTimeout(() => {
         loadDailyChart();
-        loadComparisonChart('7days');
+        loadComparisonChart('week');
         loadHeatmapChart();
         loadHourlyChart();
       }, 1000);

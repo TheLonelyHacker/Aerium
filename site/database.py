@@ -1277,8 +1277,8 @@ def import_csv_readings(readings_list):
             
             # Insert
             db.execute(
-                "INSERT INTO co2_readings (timestamp, ppm) VALUES (?, ?)",
-                (timestamp, ppm)
+                "INSERT INTO co2_readings (timestamp, ppm, source) VALUES (?, ?, ?)",
+                (timestamp, ppm, 'import')
             )
             imported_count += 1
         except ValueError as e:

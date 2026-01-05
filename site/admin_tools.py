@@ -5,9 +5,10 @@ Provides advanced admin tools for user management, analytics, and system monitor
 
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
-from database import get_db
+from database import get_db, DB_PATH
 import json
 import os
+from pathlib import Path
 
 
 class AdminAnalytics:
@@ -391,7 +392,7 @@ class AdminDatabaseMaintenance:
         import os
         from pathlib import Path
         
-        db_path = Path("data/aerium.sqlite")
+        db_path = Path(DB_PATH)
         
         if db_path.exists():
             size_bytes = db_path.stat().st_size
@@ -830,7 +831,7 @@ class SystemMonitor:
             'users': db.execute("SELECT COUNT(*) FROM users").fetchone()[0],
             'readings': db.execute("SELECT COUNT(*) FROM co2_readings").fetchone()[0],
             'audit_logs': db.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0] if db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_logs'").fetchone() else 0,
-            'size_mb': round(os.path.getsize('data/app.db') / (1024**2), 2) if os.path.exists('data/app.db') else 0,
+            'size_mb': round(os.path.getsize(Path(DB_PATH)) / (1024**2), 2) if Path(DB_PATH).exists() else 0,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -862,8 +863,9 @@ class BackupManager:
     
     def __init__(self):
         """Initialize backup manager"""
-        self.backup_dir = 'data/backups'
-        os.makedirs(self.backup_dir, exist_ok=True)
+        self.db_path = Path(DB_PATH)
+        self.backup_dir = self.db_path.parent / 'backups'
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
     
     def create_backup(self, backup_name: Optional[str] = None) -> Dict[str, Any]:
         """Create a system backup"""
@@ -873,11 +875,11 @@ class BackupManager:
             if not backup_name:
                 backup_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
-            backup_path = os.path.join(self.backup_dir, backup_name)
+            backup_path = self.backup_dir / f"{backup_name}{self.db_path.suffix or '.db'}"
             
             # Copy database
-            if os.path.exists('data/app.db'):
-                shutil.copy2('data/app.db', f"{backup_path}.db")
+            if self.db_path.exists():
+                shutil.copy2(self.db_path, backup_path)
             
             return {
                 'success': True,
@@ -897,15 +899,15 @@ class BackupManager:
         try:
             backups = []
             
-            if os.path.exists(self.backup_dir):
+            if self.backup_dir.exists():
                 for filename in os.listdir(self.backup_dir):
-                    if filename.endswith('.db'):
-                        filepath = os.path.join(self.backup_dir, filename)
-                        size_bytes = os.path.getsize(filepath)
-                        mod_time = datetime.fromtimestamp(os.path.getmtime(filepath))
+                    if filename.endswith(self.db_path.suffix):
+                        filepath = self.backup_dir / filename
+                        size_bytes = filepath.stat().st_size
+                        mod_time = datetime.fromtimestamp(filepath.stat().st_mtime)
                         
                         backups.append({
-                            'name': filename.replace('.db', ''),
+                            'name': filename.replace(self.db_path.suffix, ''),
                             'size_mb': round(size_bytes / (1024**2), 2),
                             'created': mod_time.isoformat()
                         })
@@ -920,7 +922,7 @@ class BackupManager:
         try:
             import shutil
             
-            backup_path = os.path.join(self.backup_dir, f"{backup_name}.db")
+            backup_path = self.backup_dir / f"{backup_name}{self.db_path.suffix}"
             
             if not os.path.exists(backup_path):
                 return {
@@ -930,11 +932,12 @@ class BackupManager:
                 }
             
             # Create safety backup of current database
-            if os.path.exists('data/app.db'):
-                shutil.copy2('data/app.db', f"{self.backup_dir}/pre_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db")
+            if self.db_path.exists():
+                safety_name = self.backup_dir / f"pre_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}{self.db_path.suffix}"
+                shutil.copy2(self.db_path, safety_name)
             
             # Restore backup
-            shutil.copy2(backup_path, 'data/app.db')
+            shutil.copy2(backup_path, self.db_path)
             
             return {
                 'success': True,
@@ -952,7 +955,7 @@ class BackupManager:
     def delete_backup(self, backup_name: str) -> Dict[str, Any]:
         """Delete a backup"""
         try:
-            backup_path = os.path.join(self.backup_dir, f"{backup_name}.db")
+            backup_path = self.backup_dir / f"{backup_name}{self.db_path.suffix}"
             
             if not os.path.exists(backup_path):
                 return {
@@ -978,6 +981,22 @@ class UserManager:
     
     def __init__(self):
         self.db = get_db()
+        self._ensure_user_columns()
+
+    def _ensure_user_columns(self):
+        """Add missing user columns if they are absent (non-breaking)."""
+        cursor = self.db.cursor()
+        for col_def in [
+            ("is_admin", "INTEGER DEFAULT 0"),
+            ("is_active", "INTEGER DEFAULT 1"),
+            ("last_login", "DATETIME")
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE users ADD COLUMN {col_def[0]} {col_def[1]}")
+            except Exception:
+                # Column already exists, keep going
+                pass
+        self.db.commit()
     
     def list_users(self, page: int = 1, per_page: int = 50) -> Dict:
         """Get paginated list of users"""
@@ -986,7 +1005,16 @@ class UserManager:
             offset = (page - 1) * per_page
             
             cursor.execute('''
-                SELECT id, username, email, is_admin, created_at, last_login, is_active
+                SELECT 
+                    id, username, email,
+                    COALESCE(is_admin, CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as is_admin,
+                    COALESCE(is_active, 1) as is_active,
+                    created_at,
+                    COALESCE(last_login, (
+                        SELECT MAX(login_time) FROM login_history lh WHERE lh.user_id = users.id
+                    )) as last_login,
+                    role,
+                    email_verified
                 FROM users
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
@@ -1036,7 +1064,7 @@ class UserManager:
             cursor = self.db.cursor()
             hashed = generate_password_hash(new_password)
             cursor.execute(
-                'UPDATE users SET password = ? WHERE id = ?',
+                'UPDATE users SET password_hash = ? WHERE id = ?',
                 (hashed, user_id)
             )
             self.db.commit()
@@ -1048,7 +1076,10 @@ class UserManager:
         """Set user admin status"""
         try:
             cursor = self.db.cursor()
-            cursor.execute('UPDATE users SET is_admin = ? WHERE id = ?', (int(is_admin), user_id))
+            cursor.execute(
+                'UPDATE users SET is_admin = ?, role = ? WHERE id = ?',
+                (int(is_admin), 'admin' if is_admin else 'user', user_id)
+            )
             self.db.commit()
             status = "promoted" if is_admin else "demoted"
             return {'success': True, 'message': f'User {user_id} {status}'}
@@ -1062,7 +1093,13 @@ class UserManager:
             
             # Get user info
             cursor.execute(
-                'SELECT id, username, email, created_at, last_login FROM users WHERE id = ?',
+                '''
+                SELECT id, username, email, created_at,
+                       COALESCE(last_login, (
+                           SELECT MAX(login_time) FROM login_history WHERE user_id = users.id
+                       )) as last_login
+                FROM users WHERE id = ?
+                ''',
                 (user_id,)
             )
             user = cursor.fetchone()
@@ -1282,21 +1319,21 @@ class MaintenanceManager:
     def cleanup_backups(self, keep_count: int = 10) -> Dict:
         """Remove old backups, keep most recent N"""
         try:
-            backup_dir = 'backups'
-            if not os.path.exists(backup_dir):
+            backup_dir = Path(DB_PATH).parent / 'backups'
+            if not backup_dir.exists():
                 return {'success': True, 'message': 'No backups to clean', 'deleted': 0}
             
             # List backups sorted by modification time
             backups = sorted(
-                [f for f in os.listdir(backup_dir) if f.endswith('.db')],
-                key=lambda x: os.path.getmtime(os.path.join(backup_dir, x)),
+                [f for f in os.listdir(backup_dir) if f.endswith(Path(DB_PATH).suffix)],
+                key=lambda x: (backup_dir / x).stat().st_mtime,
                 reverse=True
             )
             
             deleted_count = 0
             for backup in backups[keep_count:]:
                 try:
-                    os.remove(os.path.join(backup_dir, backup))
+                    (backup_dir / backup).unlink()
                     deleted_count += 1
                 except Exception:
                     pass
@@ -1324,8 +1361,8 @@ class MaintenanceManager:
             log_count = cursor.fetchone()[0]
             
             # Backup count
-            backup_dir = 'backups'
-            backup_count = len([f for f in os.listdir(backup_dir) if f.endswith('.db')]) if os.path.exists(backup_dir) else 0
+            backup_dir = Path(DB_PATH).parent / 'backups'
+            backup_count = len([f for f in os.listdir(backup_dir) if f.endswith(Path(DB_PATH).suffix)]) if backup_dir.exists() else 0
             
             return {
                 'success': True,

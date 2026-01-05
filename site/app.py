@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template, request, make_response, session, redirect, url_for
+from flask import Flask, jsonify, render_template, request, make_response, session, redirect, url_for, flash
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -781,18 +781,6 @@ def admin_maintenance():
     
     return jsonify({'success': True, **results})
 
-@app.route("/admin/audit-logs")
-@admin_required
-def view_audit_logs():
-    """View audit logs"""
-    action_filter = request.args.get('action')
-    page = request.args.get('page', 1, type=int)
-    limit = 50
-    
-    logs = get_audit_logs(limit=limit * page, action_filter=action_filter)
-    
-    return render_template("audit_logs.html", logs=logs, action_filter=action_filter)
-
 # ================================================================================
 #                        ONBOARDING ROUTES
 # ================================================================================
@@ -1100,20 +1088,39 @@ def analytics_week_compare():
 @login_required
 def analytics_trend():
     """Get trend analysis (rising/stable/falling)"""
+    source = request.args.get('source', 'live')
+    # Map frontend source names to database values
+    source_map = {'live': 'live', 'simulation': 'sim', 'import': 'import'}
+    db_source = source_map.get(source, 'live')
+    
     db = get_db()
     
-    # Get hourly averages for last 7 days
-    data = db.execute("""
-        SELECT 
-            strftime('%Y-%m-%d %H:00', timestamp) as hour,
-            AVG(ppm) as avg_ppm,
-            COUNT(*) as readings
-        FROM co2_readings
-        WHERE timestamp >= datetime('now', '-7 days')
-        GROUP BY hour
-        ORDER BY hour DESC
-        LIMIT 168
-    """).fetchall()
+    # For imported data, show ALL data; for live/sim, show last 7 days
+    if db_source == 'import':
+        data = db.execute("""
+            SELECT 
+                strftime('%Y-%m-%d %H:00', timestamp) as hour,
+                AVG(ppm) as avg_ppm,
+                COUNT(*) as readings
+            FROM co2_readings
+            WHERE source = ?
+            GROUP BY hour
+            ORDER BY hour DESC
+            LIMIT 168
+        """, (db_source,)).fetchall()
+    else:
+        data = db.execute("""
+            SELECT 
+                strftime('%Y-%m-%d %H:00', timestamp) as hour,
+                AVG(ppm) as avg_ppm,
+                COUNT(*) as readings
+            FROM co2_readings
+            WHERE timestamp >= datetime('now', '-7 days')
+            AND source = ?
+            GROUP BY hour
+            ORDER BY hour DESC
+            LIMIT 168
+        """, (db_source,)).fetchall()
     
     db.close()
     
@@ -1122,7 +1129,20 @@ def analytics_trend():
     
     # Calculate trend
     recent_avg = sum(d['avg_ppm'] for d in data[:24]) / min(24, len(data))
-    older_avg = sum(d['avg_ppm'] for d in data[24:48]) / min(24, len(data[24:]))
+    
+    # Check if we have enough older data
+    older_data = data[24:48]
+    if len(older_data) == 0:
+        # Not enough data for comparison
+        return jsonify({
+            'trend': 'insufficient_data',
+            'recent_avg': round(recent_avg, 1),
+            'older_avg': 0,
+            'percent_change': 0,
+            'data': [dict(d) for d in data]
+        })
+    
+    older_avg = sum(d['avg_ppm'] for d in older_data) / len(older_data)
     
     if older_avg == 0:
         trend = 'insufficient_data'
@@ -1184,22 +1204,53 @@ def analytics_custom_range():
 def compare_periods():
     """Compare CO₂ data between two time periods (e.g., this week vs last week)"""
     period_type = request.args.get('type', 'week')  # week, month, or custom
+    source = request.args.get('source', 'live')
+    # Map frontend source names to database values
+    source_map = {'live': 'live', 'simulation': 'sim', 'import': 'import'}
+    db_source = source_map.get(source, 'live')
     
     db = get_db()
     
     if period_type == 'week':
-        # Compare this week to last week
-        current_data = db.execute("""
-            SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
-            FROM co2_readings
-            WHERE timestamp >= datetime('now', '-7 days')
-        """).fetchone()
-        
-        previous_data = db.execute("""
-            SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
-            FROM co2_readings
-            WHERE timestamp >= datetime('now', '-14 days') AND timestamp < datetime('now', '-7 days')
-        """).fetchone()
+        # For imported data, compare first half vs second half of dataset
+        if db_source == 'import':
+            # Get date range of imported data
+            date_range = db.execute("""
+                SELECT MIN(timestamp) as min_date, MAX(timestamp) as max_date
+                FROM co2_readings WHERE source = ?
+            """, (db_source,)).fetchone()
+            
+            if date_range and date_range['min_date'] and date_range['max_date']:
+                # Split in half
+                current_data = db.execute("""
+                    SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
+                    FROM co2_readings
+                    WHERE source = ? AND timestamp >= (SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2) FROM co2_readings WHERE source = ?)
+                """, (db_source, db_source)).fetchone()
+                
+                previous_data = db.execute("""
+                    SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
+                    FROM co2_readings
+                    WHERE source = ? AND timestamp < (SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2) FROM co2_readings WHERE source = ?)
+                """, (db_source, db_source)).fetchone()
+            else:
+                current_data = {'avg': 0, 'min': 0, 'max': 0, 'count': 0}
+                previous_data = {'avg': 0, 'min': 0, 'max': 0, 'count': 0}
+        else:
+            # Compare this week to last week
+            current_data = db.execute("""
+                SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
+                FROM co2_readings
+                WHERE timestamp >= datetime('now', '-7 days')
+                AND source = ?
+            """, (db_source,)).fetchone()
+            
+            previous_data = db.execute("""
+                SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
+                FROM co2_readings
+                WHERE timestamp >= datetime('now', '-14 days') AND timestamp < datetime('now', '-7 days')
+                AND source = ?
+            """, (db_source,)).fetchone()
         
     elif period_type == 'month':
         # Compare this month to last month
@@ -1207,14 +1258,16 @@ def compare_periods():
             SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
             FROM co2_readings
             WHERE timestamp >= datetime('now', 'start of month')
-        """).fetchone()
+            AND source = ?
+        """, (db_source,)).fetchone()
         
         previous_data = db.execute("""
             SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
             FROM co2_readings
             WHERE timestamp >= datetime('now', '-1 month', 'start of month')
             AND timestamp < datetime('now', 'start of month')
-        """).fetchone()
+            AND source = ?
+        """, (db_source,)).fetchone()
     else:
         return jsonify({'error': 'Invalid period_type'}), 400
     
@@ -1241,20 +1294,42 @@ def compare_periods():
 @login_required
 def daily_comparison():
     """Get daily averages for the last 30 days for trend visualization"""
+    source = request.args.get('source', 'live')
+    # Map frontend source names to database values
+    source_map = {'live': 'live', 'simulation': 'sim', 'import': 'import'}
+    db_source = source_map.get(source, 'live')
+    
     db = get_db()
     
-    days_data = db.execute("""
-        SELECT 
-            DATE(timestamp) as date,
-            AVG(ppm) as avg_ppm,
-            MIN(ppm) as min_ppm,
-            MAX(ppm) as max_ppm,
-            COUNT(*) as readings
-        FROM co2_readings
-        WHERE timestamp >= datetime('now', '-30 days')
-        GROUP BY DATE(timestamp)
-        ORDER BY date ASC
-    """).fetchall()
+    # For imported data, show ALL data regardless of date range
+    # For live/sim data, show last 30 days
+    if db_source == 'import':
+        days_data = db.execute("""
+            SELECT 
+                DATE(timestamp) as date,
+                AVG(ppm) as avg_ppm,
+                MIN(ppm) as min_ppm,
+                MAX(ppm) as max_ppm,
+                COUNT(*) as readings
+            FROM co2_readings
+            WHERE source = ?
+            GROUP BY DATE(timestamp)
+            ORDER BY date ASC
+        """, (db_source,)).fetchall()
+    else:
+        days_data = db.execute("""
+            SELECT 
+                DATE(timestamp) as date,
+                AVG(ppm) as avg_ppm,
+                MIN(ppm) as min_ppm,
+                MAX(ppm) as max_ppm,
+                COUNT(*) as readings
+            FROM co2_readings
+            WHERE timestamp >= datetime('now', '-30 days')
+            AND source = ?
+            GROUP BY DATE(timestamp)
+            ORDER BY date ASC
+        """, (db_source,)).fetchall()
     
     db.close()
     
@@ -1411,10 +1486,41 @@ def history_range(range):
     return jsonify([dict(r) for r in rows])
 
 # 3. API ROUTES
+def get_latest_real_reading(max_age_minutes: int = 5):
+    """Return the most recent sensor reading if it is fresh enough."""
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT ppm, temperature, humidity, timestamp, source
+        FROM co2_readings
+        WHERE source IN ('sensor','real','live_real')
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    db.close()
+
+    if not row:
+        return None
+
+    ts_raw = row["timestamp"]
+    if ts_raw:
+        try:
+            ts_dt = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+            if ts_dt < datetime.now(UTC) - timedelta(minutes=max_age_minutes):
+                return None
+        except Exception:
+            # If parsing fails, accept the row without freshness check
+            pass
+
+    return dict(row)
+
+
 def build_live_payload(settings=None):
     """Centralized live-reading builder (used by HTTP and WebSocket)."""
     settings = settings or load_settings()
 
+    # Respect paused state first
     if not settings.get("analysis_running", True):
         return settings, {
             "analysis_running": False,
@@ -1423,7 +1529,9 @@ def build_live_payload(settings=None):
             "timestamp": datetime.now(UTC).isoformat()
         }
 
-    if not settings.get("simulate_live", False):
+    # Simulator data must NOT feed the live UI; only the simulator page uses /api/simulator/latest
+    # If simulate_live is flagged true, treat it as no_sensor for the live endpoint/UI.
+    if settings.get("simulate_live", False):
         return settings, {
             "analysis_running": False,
             "ppm": None,
@@ -1431,20 +1539,22 @@ def build_live_payload(settings=None):
             "timestamp": datetime.now(UTC).isoformat()
         }
 
-    data = generate_co2_data(settings.get("realistic_mode", True))
-    ppm = data["co2"]
-    temp = data.get("temp")
-    humidity = data.get("humidity")
-
-    # Persist as live source
-    save_reading(ppm, temp, humidity, source="live", persist=True)
+    # Real sensor path: use freshest non-simulated reading
+    latest = get_latest_real_reading()
+    if not latest:
+        return settings, {
+            "analysis_running": False,
+            "ppm": None,
+            "reason": "no_sensor",
+            "timestamp": datetime.now(UTC).isoformat()
+        }
 
     return settings, {
         "analysis_running": True,
-        "ppm": ppm,
-        "temp": temp,
-        "humidity": humidity,
-        "timestamp": datetime.now(UTC).isoformat()
+        "ppm": latest.get("ppm"),
+        "temp": latest.get("temperature"),
+        "humidity": latest.get("humidity"),
+        "timestamp": latest.get("timestamp", datetime.now(UTC).isoformat())
     }
 
 
@@ -1454,6 +1564,42 @@ def api_live_latest():
     resp = make_response(jsonify(payload))
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@app.route("/api/readings", methods=["POST", "GET"])
+@limiter.exempt
+def api_readings_ingest():
+    """Ingest real sensor readings (POST) or fetch recent readings (GET)."""
+    if request.method == "GET":
+        days = request.args.get("days", default=1, type=int)
+        db = get_db()
+        rows = db.execute(
+            """
+            SELECT ppm, temperature, humidity, timestamp, source
+            FROM co2_readings
+            WHERE timestamp >= datetime('now', ?)
+            ORDER BY timestamp DESC
+            """,
+            (f"-{days} days",)
+        ).fetchall()
+        db.close()
+        return jsonify([dict(r) for r in rows])
+
+    data = request.get_json(silent=True) or {}
+    ppm = data.get("ppm")
+    if ppm is None:
+        return jsonify({"error": "ppm is required"}), 400
+
+    temp = data.get("temp", data.get("temperature"))
+    humidity = data.get("humidity")
+
+    try:
+        ppm_int = int(ppm)
+    except Exception:
+        return jsonify({"error": "ppm must be numeric"}), 400
+
+    save_reading(ppm_int, temp, humidity, source="sensor", persist=True)
+    return jsonify({"success": True})
 
 
 @app.route("/api/latest")
@@ -1473,8 +1619,8 @@ def api_simulator_latest():
     temp = data.get("temp")
     humidity = data.get("humidity")
 
-    # Do not persist simulator traffic into live history
-    save_reading(ppm, temp, humidity, source="sim", persist=False)
+    # Persist simulator traffic as source="sim" so analytics can display it
+    save_reading(ppm, temp, humidity, source="sim", persist=True)
 
     resp = make_response(jsonify({
         "analysis_running": True,
@@ -1488,13 +1634,37 @@ def api_simulator_latest():
 
 @app.route("/api/history/today")
 def api_history_today():
+    source = request.args.get("source", "real")
+
     db = get_db()
-    rows = db.execute("""
-        SELECT ppm, timestamp
-        FROM co2_readings
-        WHERE date(timestamp) = date('now')
-        ORDER BY timestamp
-    """).fetchall()
+    if source == "all":
+        rows = db.execute(
+            """
+            SELECT ppm, temperature, humidity, timestamp, source
+            FROM co2_readings
+            WHERE date(timestamp) = date('now')
+            ORDER BY timestamp
+            """
+        ).fetchall()
+    elif source == "sim":
+        rows = db.execute(
+            """
+            SELECT ppm, temperature, humidity, timestamp, source
+            FROM co2_readings
+            WHERE date(timestamp) = date('now') AND source = 'sim'
+            ORDER BY timestamp
+            """
+        ).fetchall()
+    else:  # real only
+        rows = db.execute(
+            """
+            SELECT ppm, temperature, humidity, timestamp, source
+            FROM co2_readings
+            WHERE date(timestamp) = date('now') AND source IN ('sensor','real','live_real')
+            ORDER BY timestamp
+            """
+        ).fetchall()
+
     db.close()
 
     return jsonify([dict(r) for r in rows])

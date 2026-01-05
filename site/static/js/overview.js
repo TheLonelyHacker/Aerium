@@ -10,6 +10,8 @@ const isOverviewPage = !!document.querySelector(".air-health");
 let lastSubPPM = null;
 let overviewUpdateInterval = null;
 let overviewUpdateSpeed = 5; // Default 5 seconds
+let simulateLive = null; // tracks if we are in simulator mode
+let overviewSource = localStorage.getItem("overviewSource") || "real"; // 'real' or 'sim'
 
 /*
 ================================================================================
@@ -112,6 +114,29 @@ function updateCO2Thermo(value) {
   }
 }
 
+// Compute minutes spent in degraded air using timestamps
+function computeBadMinutes(readings) {
+  if (!readings?.length) return 0;
+
+  let badMs = 0;
+
+  for (let i = 0; i < readings.length; i++) {
+    const current = readings[i];
+    if (current.ppm < badThreshold) continue;
+
+    const start = new Date(current.timestamp).getTime();
+    const end = i < readings.length - 1
+      ? new Date(readings[i + 1].timestamp).getTime()
+      : Date.now();
+
+    if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+      badMs += end - start;
+    }
+  }
+
+  return Math.max(0, Math.round(badMs / 60000));
+}
+
 /*
 ================================================================================
                       STATS LOADING
@@ -144,64 +169,128 @@ async function loadOverviewStats() {
       };
     }
     
-    updateNavAnalysisState(settings.analysis_running);
+    // Persist simulate_live flag if provided by settings (only for info; we do not use it to show data)
+    if (settings.simulate_live !== undefined) {
+      simulateLive = settings.simulate_live;
+    }
 
-    /* ⏸ ANALYSIS PAUSED */
-    if (!settings.analysis_running) {
+    const useSim = overviewSource === "sim";
+    const simulationActive = useSim; // only user toggle controls sim view
+
+    // Fetch latest payload to detect no-sensor state (real path)
+    const live = simulationActive ? null : await fetchLatestData();
+    const noSensor = !simulationActive && live?.reason === "no_sensor";
+
+    const isRunning = settings.analysis_running !== false && !simulationActive && !noSensor;
+
+    updateNavAnalysisState(isRunning);
+
+    if (analysisEl) {
+      if (simulationActive) analysisEl.textContent = "Simulation";
+      else if (noSensor) analysisEl.textContent = "Aucun capteur";
+      else analysisEl.textContent = isRunning ? "Active" : "Pause";
+    }
+
+    analysisWidget?.classList.toggle("paused", !isRunning);
+    analysisWidget?.classList.toggle("good", isRunning);
+
+    if (thresholdsEl) {
+      thresholdsEl.textContent = `${settings.good_threshold} / ${settings.bad_threshold} ppm`;
+    }
+
+    // Simulation: disable system status visuals
+    if (simulationActive) {
       airCard.classList.remove("good", "medium", "bad");
       airCard.classList.add("paused");
-
-      statusEl.textContent = "Analyse en pause";
-      subEl.textContent = "Aucune donnée en cours";
-
-      if (analysisEl) {
-        analysisEl.textContent = "Pause";
-        analysisWidget?.classList.remove("good");
-        analysisWidget?.classList.add("paused");
+      statusEl.textContent = "Mode simulation";
+      if (subEl) {
+        subEl.textContent = "État du système désactivé en simulation";
+        subEl.style.color = "var(--muted)";
       }
+      if (document.getElementById("air-advice")) {
+        document.getElementById("air-advice").textContent = "Connectez un capteur réel pour suivre l'état";
+      }
+      updateCO2Thermo?.(0);
+      // Still show daily stats below even in simulation
+    }
 
+    /* TODAY HISTORY - always show stats, even when paused */
+    const data = await fetchTodayHistory(simulationActive ? "sim" : "real");
+
+    if (data.length) {
+      const values = data.map((d) => d.ppm);
+      const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+      const max = Math.max(...values);
+      const badMinutes = computeBadMinutes(data);
+      const last = data[data.length - 1];
+
+      if (avgEl) avgEl.textContent = `${avg} ppm`;
+      if (maxEl) maxEl.textContent = `${max} ppm`;
+      if (badEl) badEl.textContent = `${badMinutes} min`;
+
+      // Update visuals based on last reading and sensor state
+      if (simulationActive) {
+        // Already handled above; keep visuals muted
+        updateCO2Thermo?.(0);
+      } else if (noSensor) {
+        airCard.classList.remove("good", "medium", "bad");
+        airCard.classList.add("paused");
+        statusEl.textContent = "Aucun capteur";
+        if (subEl) {
+          subEl.textContent = "Connectez un capteur pour afficher l'état";
+          subEl.style.color = "var(--muted)";
+        }
+        if (document.getElementById("air-advice")) {
+          document.getElementById("air-advice").textContent = "En attente d'un capteur";
+        }
+        updateCO2Thermo?.(0);
+      } else if (isRunning) {
+        updateAirHealth(last.ppm);
+        animateSubValue(last.ppm, subEl);
+        updateCO2Thermo?.(last.ppm);
+      } else {
+        airCard.classList.remove("good", "medium", "bad");
+        airCard.classList.add("paused");
+        statusEl.textContent = "Analyse en pause";
+        if (subEl) {
+          subEl.textContent = `Dernier relevé · ${last.ppm} ppm`;
+          subEl.style.color = ppmColor(last.ppm);
+        }
+        updateCO2Thermo?.(last.ppm);
+      }
+    } else {
       if (avgEl) avgEl.textContent = "—";
       if (maxEl) maxEl.textContent = "—";
       if (badEl) badEl.textContent = "—";
-
-      thresholdsEl.textContent = `${settings.good_threshold} / ${settings.bad_threshold} ppm`;
-
+      if (!isRunning) {
+        airCard.classList.add("paused");
+        statusEl.textContent = "Analyse en pause";
+        if (subEl) subEl.textContent = "Aucune donnée disponible";
+      }
       updateCO2Thermo?.(0);
-      return;
     }
 
-    /* ▶️ ANALYSIS RUNNING */
-    airCard.classList.remove("paused");
-    analysisWidget?.classList.remove("paused");
-    analysisWidget?.classList.add("good");
-
-    if (analysisEl) {
-      analysisEl.textContent = "Active";
+    /* ▶️ LIVE SNAPSHOT when running and sensor present */
+    if (simulationActive) {
+      // Pull one simulator sample for display (does not affect history already loaded)
+      try {
+        const sim = await fetch("/api/simulator/latest", { cache: "no-store" }).then(r => r.json());
+        if (sim?.ppm != null) {
+          statusEl.textContent = "Simulation";
+          updateAirHealth(sim.ppm);
+          updateCO2Thermo(sim.ppm);
+          animateSubValue(sim.ppm, subEl);
+        }
+      } catch (e) {
+        console.warn("Simulator latest failed", e);
+      }
+    } else if (isRunning) {
+      if (live?.ppm != null) {
+        updateAirHealth(live.ppm);
+        updateCO2Thermo(live.ppm);
+        animateSubValue(live.ppm, subEl);
+      }
     }
-
-    thresholdsEl.textContent = `${settings.good_threshold} / ${settings.bad_threshold} ppm`;
-
-    /* LIVE SNAPSHOT */
-    const live = await fetchLatestData();
-
-    if (live?.ppm != null) {
-      updateAirHealth(live.ppm);
-      updateCO2Thermo(live.ppm);
-      animateSubValue(live.ppm, subEl);
-    }
-
-    /* TODAY HISTORY */
-    const data = await fetchTodayHistory();
-    if (!data.length) return;
-
-    const values = data.map((d) => d.ppm);
-    const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
-    const max = Math.max(...values);
-    const badMinutes = values.filter((v) => v >= badThreshold).length;
-
-    if (avgEl) avgEl.textContent = `${avg} ppm`;
-    if (maxEl) maxEl.textContent = `${max} ppm`;
-    if (badEl) badEl.textContent = `${badMinutes} min`;
   } catch (e) {
     console.error("Overview stats failed", e);
   }
@@ -252,11 +341,25 @@ if (isOverviewPage) {
       if (settings.overview_update_speed !== undefined) {
         overviewUpdateSpeed = settings.overview_update_speed;
       }
+      if (settings.simulate_live !== undefined) {
+        simulateLive = settings.simulate_live;
+      }
     } catch (e) {
       console.warn("Could not load settings, using default interval", e);
     }
     
     startOverviewRefresh();
+
+    // Wire source selector if present
+    const sourceSelect = document.getElementById("overview-source");
+    if (sourceSelect) {
+      sourceSelect.value = overviewSource;
+      sourceSelect.addEventListener("change", (e) => {
+        overviewSource = e.target.value === "sim" ? "sim" : "real";
+        localStorage.setItem("overviewSource", overviewSource);
+        startOverviewRefresh();
+      });
+    }
   });
 }
 

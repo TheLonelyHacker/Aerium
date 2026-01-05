@@ -192,8 +192,9 @@ const zoneBackgroundPlugin = {
     const yBad = y.getPixelForValue(bad);
 
     const gradient = ctx.createLinearGradient(0, top, 0, bottom);
-    const gStop = (yGood - top) / (bottom - top);
-    const bStop = (yBad - top) / (bottom - top);
+    const clamp = (v) => Math.max(0, Math.min(1, v));
+    const gStop = clamp((yGood - top) / (bottom - top));
+    const bStop = clamp((yBad - top) / (bottom - top));
 
     if (good === bad) {
       gradient.addColorStop(0, "rgba(248,113,113,0.20)");
@@ -329,6 +330,9 @@ function createChart() {
       },
     },
   });
+  
+  // Expose chart globally for theme switching
+  window.chart = chart;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── 
@@ -396,7 +400,8 @@ function updateChart(ppm, timestamp, temp = null, humidity = null) {
 
 function showPausedOverlay(reason = null) {
   pausedOverlay?.classList.add("active");
-  valueEl.textContent = "⏸";
+  const val = reason === "no_sensor" ? "❌" : "⏸";
+  valueEl.textContent = val;
   valueEl.style.color = "#9ca3af";
   trendEl.textContent = "";
   const msg = reason === "no_sensor" ? "Aucun capteur connecté" : "Analyse en pause";
@@ -676,7 +681,9 @@ window.handleSettingsUpdate = function(settings) {
     updatePollingSpeed(settings.update_speed);
   }
   
-  chart.update("none");
+  if (chart && chart.update) {
+    chart.update("none");
+  }
 };
 
 
@@ -919,5 +926,14 @@ if (isLivePage) {
 }
 
 if (isLivePage) {
-  document.addEventListener("DOMContentLoaded", initLivePage);
+  document.addEventListener("DOMContentLoaded", () => {
+    initLivePage();
+    // Apply current theme to chart after it's created
+    setTimeout(() => {
+      const isLight = localStorage.getItem('theme') === 'light';
+      if (typeof updateChartTheme === 'function') {
+        updateChartTheme(isLight);
+      }
+    }, 500);
+  });
 }

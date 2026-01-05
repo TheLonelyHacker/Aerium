@@ -34,8 +34,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Start system state watcher for navbar updates
   startSystemStateWatcher();
 
-  // Initialize analytics CSV import if on analytics page
-  initAnalyticsCSVImport();
+  // Initialize analytics CSV import if defined
+  if (typeof window.initAnalyticsCSVImport === 'function') {
+    initAnalyticsCSVImport();
+  }
 
   // Initialize page-specific modules
   if (isLivePage) initLivePage();
@@ -193,8 +195,20 @@ function initKeyboardShortcuts() {
       e.preventDefault();
       showKeyboardHelp();
     }
+
+    // ? key to open keyboard help (when not typing in inputs)
+    if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      const tag = document.activeElement?.tagName;
+      if (tag !== "INPUT" && tag !== "TEXTAREA") {
+        e.preventDefault();
+        showKeyboardHelp();
+      }
+    }
   });
 }
+
+// Expose globally (used by pages that call it directly)
+window.initKeyboardShortcuts = initKeyboardShortcuts;
 
 /*
 ================================================================================
@@ -536,28 +550,6 @@ function logPerformanceMetric(name, duration) {
 }
 
 window.logPerformanceMetric = logPerformanceMetric;
-
-/*
-================================================================================
-                   ENHANCED KEYBOARD SHORTCUTS WITH HELP
-================================================================================
-*/
-
-const originalInitKeyboardShortcuts = initKeyboardShortcuts;
-
-function initKeyboardShortcuts() {
-  originalInitKeyboardShortcuts();
-
-  // Add ? key for help
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-      // Check if focus is not in an input
-      if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-        showKeyboardHelp();
-      }
-    }
-  });
-}
 
 /*
 ================================================================================

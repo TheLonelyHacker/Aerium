@@ -1133,7 +1133,7 @@ def register_advanced_features(app, limiter):
     setup_optimization_routes(app, limiter)
     setup_admin_tools_routes(app, limiter)
     
-    print("✅ Advanced features registered successfully")
+    print("[OK] Advanced features registered successfully")
 
 
 # Usage in app.py:

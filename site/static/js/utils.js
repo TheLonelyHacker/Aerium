@@ -192,8 +192,8 @@ async function fetchLatestData() {
 /* ─────────────────────────────────────────────────────────────────────────── 
    History API
 ──────────────────────────────────────────────────────────────────────────── */
-async function fetchTodayHistory() {
-  const res = await fetch("/api/history/today");
+async function fetchTodayHistory(source = "real") {
+  const res = await fetch(`/api/history/today?source=${encodeURIComponent(source)}`);
   return await res.json();
 }
 
@@ -361,33 +361,52 @@ function applyTheme(lightMode) {
   if (lightMode) {
     // Light Mode - Clean, professional look with proper contrast
     root.style.setProperty("--bg", "#f8f9fa");
+    root.style.setProperty("--bg-solid", "#f8f9fa");
     root.style.setProperty("--card", "#ffffff");
+    root.style.setProperty("--card-solid", "#ffffff");
     root.style.setProperty("--text", "#1a1f36");
     root.style.setProperty("--muted", "#6c757d");
     root.style.setProperty("--good", "#28a745");
     root.style.setProperty("--medium", "#ffc107");
     root.style.setProperty("--bad", "#dc3545");
     root.style.setProperty("--accent", "#0066cc");
-    document.documentElement.style.setProperty("--border-light", "rgba(0,0,0,0.12)");
-    document.documentElement.style.setProperty("--border-dark", "rgba(0,0,0,0.08)");
+    root.style.setProperty("--accent-alt", "#004c99");
+    root.style.setProperty("--gradient-primary", "linear-gradient(135deg, #0066cc 0%, #004c99 100%)");
+    document.documentElement.style.setProperty("--border-light", "rgba(0,102,204,0.15)");
+    document.documentElement.style.setProperty("--border-dark", "rgba(0,102,204,0.08)");
     
     // Light mode shadow adjustments
     document.documentElement.style.setProperty("--shadow-sm", "0 1px 3px rgba(0,0,0,0.08)");
     document.documentElement.style.setProperty("--shadow-md", "0 4px 12px rgba(0,0,0,0.1)");
     document.documentElement.style.setProperty("--shadow-lg", "0 8px 24px rgba(0,0,0,0.12)");
+    document.documentElement.style.setProperty("--shadow-accent", "0 4px 15px rgba(0,102,204,0.15)");
+    
+    // Apply light mode class for CSS selector support
+    document.documentElement.classList.add("light-mode");
+    document.documentElement.classList.remove("dark-mode");
+    
+    // Switch logo to black version for light mode
+    const logoImg = document.getElementById('nav-logo-img');
+    if (logoImg) {
+      logoImg.src = logoImg.src.replace('logoWhite.png', 'logoBlack.png');
+    }
     
     darkMode = false;
     localStorage.setItem("theme", "light");
   } else {
     // Dark Mode - Deep, professional look
     root.style.setProperty("--bg", "#0b0d12");
+    root.style.setProperty("--bg-solid", "#0b0d12");
     root.style.setProperty("--card", "#141826");
+    root.style.setProperty("--card-solid", "#141826");
     root.style.setProperty("--text", "#e5e7eb");
     root.style.setProperty("--muted", "#9ca3af");
     root.style.setProperty("--good", "#4ade80");
     root.style.setProperty("--medium", "#facc15");
     root.style.setProperty("--bad", "#f87171");
     root.style.setProperty("--accent", "#4db8ff");
+    root.style.setProperty("--accent-alt", "#764ba2");
+    root.style.setProperty("--gradient-primary", "linear-gradient(135deg, #667eea 0%, #764ba2 100%)");
     document.documentElement.style.setProperty("--border-light", "rgba(255,255,255,0.08)");
     document.documentElement.style.setProperty("--border-dark", "rgba(255,255,255,0.06)");
     
@@ -395,10 +414,87 @@ function applyTheme(lightMode) {
     document.documentElement.style.setProperty("--shadow-sm", "0 2px 8px rgba(0,0,0,0.12)");
     document.documentElement.style.setProperty("--shadow-md", "0 8px 24px rgba(0,0,0,0.18)");
     document.documentElement.style.setProperty("--shadow-lg", "0 16px 48px rgba(0,0,0,0.24)");
+    document.documentElement.style.setProperty("--shadow-accent", "0 4px 15px rgba(102,126,234,0.25)");
+    
+    // Apply dark mode class for CSS selector support
+    document.documentElement.classList.add("dark-mode");
+    document.documentElement.classList.remove("light-mode");
+    
+    // Switch logo to white version for dark mode
+    const logoImg = document.getElementById('nav-logo-img');
+    if (logoImg) {
+      logoImg.src = logoImg.src.replace('logoBlack.png', 'logoWhite.png');
+    }
     
     darkMode = true;
     localStorage.setItem("theme", "dark");
   }
+  
+  // Update chart colors if chart exists (for live page)
+  updateChartTheme(lightMode);
+}
+
+// Update chart theme colors
+function updateChartTheme(isLightMode) {
+  // Use setTimeout to ensure chart is initialized
+  setTimeout(() => {
+    // Access global chart if it exists (defined in live.js)
+    if (typeof window.chart !== 'undefined' && window.chart) {
+      const chart = window.chart;
+    
+    if (isLightMode) {
+      // Light mode chart colors - darker lines for visibility
+      chart.options.scales.x.ticks.color = '#1a1f36';
+      chart.options.scales.x.grid.color = 'rgba(0, 102, 204, 0.1)';
+      chart.options.scales.y.ticks.color = '#1a1f36';
+      chart.options.scales.y.grid.color = 'rgba(0, 102, 204, 0.1)';
+      
+      // Update dataset colors for better visibility
+      if (chart.data.datasets[0]) {
+        chart.data.datasets[0].borderColor = '#1a1f36'; // Darker default line
+        chart.data.datasets[0].backgroundColor = 'rgba(40, 167, 69, 0.08)';
+        chart.data.datasets[0].pointBorderColor = '#ffffff'; // White point border
+      }
+      
+      // Temperature line (if exists)
+      if (chart.data.datasets[1]) {
+        chart.data.datasets[1].borderColor = '#0066cc'; // Blue for temp
+        chart.data.datasets[1].backgroundColor = 'rgba(0, 102, 204, 0.08)';
+      }
+      
+      // Humidity line (if exists)
+      if (chart.data.datasets[2]) {
+        chart.data.datasets[2].borderColor = '#ffc107'; // Yellow for humidity
+        chart.data.datasets[2].backgroundColor = 'rgba(255, 193, 7, 0.08)';
+      }
+    } else {
+      // Dark mode chart colors
+      chart.options.scales.x.ticks.color = '#9ca3af';
+      chart.options.scales.x.grid.color = 'rgba(255, 255, 255, 0.05)';
+      chart.options.scales.y.ticks.color = '#9ca3af';
+      chart.options.scales.y.grid.color = 'rgba(255, 255, 255, 0.05)';
+      
+      // Reset to default dark colors
+      if (chart.data.datasets[0]) {
+        chart.data.datasets[0].borderColor = '#a0aab7';
+        chart.data.datasets[0].backgroundColor = 'rgba(61, 217, 143, 0.12)';
+        chart.data.datasets[0].pointBorderColor = '#0b0d12';
+      }
+      
+      if (chart.data.datasets[1]) {
+        chart.data.datasets[1].borderColor = '#60a5fa';
+        chart.data.datasets[1].backgroundColor = 'rgba(96,165,250,0.08)';
+      }
+      
+      if (chart.data.datasets[2]) {
+        chart.data.datasets[2].borderColor = '#facc15';
+        chart.data.datasets[2].backgroundColor = 'rgba(250,204,21,0.08)';
+      }
+    }
+    
+    chart.update('none'); // Update without animation
+    }
+  }, 100); // Small delay to ensure chart is created
 }
 
 // Apply saved theme on load
