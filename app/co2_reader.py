@@ -3,6 +3,7 @@ Fichier pour tester l'app sans capteur de co2
 '''
 import random
 import time
+import os
 
 def fake_read_co2():
     """
@@ -33,10 +34,32 @@ def alert_needed(ppm, threshold=1200):
 
 if __name__ == "__main__":
     import time
+    # Try to use an attached SCD30 sensor when available. Set environment
+    # variable USE_SCD30=0 to force the fake reader.
+    try:
+        from app.sensors.scd30 import SCD30
+        _scd30 = SCD30()
+    except Exception:
+        _scd30 = None
+
+    use_scd = os.environ.get("USE_SCD30", "1")
     while True:
-        ppm = fake_read_co2()
+        ppm = None
+        extra = ""
+        if use_scd != "0" and _scd30 is not None:
+            try:
+                reading = _scd30.read()
+                if reading and "co2" in reading:
+                    ppm = int(reading["co2"])
+                    extra = f" | T: {reading.get('temperature')}°C | RH: {reading.get('humidity')}%"
+            except Exception:
+                ppm = None
+
+        if ppm is None:
+            ppm = fake_read_co2()
+
         quality = get_air_quality(ppm)
         alert = alert_needed(ppm)
 
-        print(f"CO₂ : {ppm} ppm | Qualité : {quality} | Alerte : {alert}")
+        print(f"CO₂ : {ppm} ppm | Qualité : {quality} | Alerte : {alert}{extra}")
         time.sleep(1)

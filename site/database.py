@@ -350,6 +350,35 @@ def init_db():
         ON user_permissions(permission)
     """)
 
+    # User sensors - multi-sensor management
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_sensors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            interface TEXT NOT NULL,
+            config TEXT NOT NULL,
+            active BOOLEAN DEFAULT 1,
+            available BOOLEAN DEFAULT 0,
+            last_read DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE(user_id, name)
+        )
+    """)
+
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_user_sensors_user_id 
+        ON user_sensors(user_id)
+    """)
+
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_user_sensors_active 
+        ON user_sensors(user_id, active)
+    """)
+
     db.commit()
     db.close()
 
@@ -1311,3 +1340,220 @@ def get_csv_import_stats():
     
     db.close()
     return dict(stats) if stats else {}
+
+# ================================================================================
+#                      MULTI-SENSOR MANAGEMENT
+# ================================================================================
+
+def create_sensor(user_id, name, sensor_type, interface, config):
+    """Create a new sensor for user"""
+    import json
+    db = get_db()
+    
+    try:
+        config_json = json.dumps(config) if isinstance(config, dict) else config
+        cur = db.execute(
+            """INSERT INTO user_sensors 
+               (user_id, name, type, interface, config, active, available)
+               VALUES (?, ?, ?, ?, ?, 1, 0)""",
+            (user_id, name, sensor_type, interface, config_json)
+        )
+        db.commit()
+        sensor_id = cur.lastrowid
+        db.close()
+        return sensor_id
+    except sqlite3.IntegrityError as e:
+        db.close()
+        return None
+    except Exception as e:
+        db.close()
+        return None
+
+def get_user_sensors(user_id):
+    """Get all sensors for a user"""
+    import json
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    
+    sensors = db.execute(
+        """SELECT * FROM user_sensors WHERE user_id = ? ORDER BY created_at DESC""",
+        (user_id,)
+    ).fetchall()
+    
+    db.close()
+    
+    result = []
+    for sensor in sensors:
+        sensor_dict = dict(sensor)
+        try:
+            sensor_dict['config'] = json.loads(sensor_dict['config']) if isinstance(sensor_dict['config'], str) else sensor_dict['config']
+        except:
+            sensor_dict['config'] = {}
+        result.append(sensor_dict)
+    
+    return result
+
+def get_sensor_by_id(sensor_id, user_id=None):
+    """Get a specific sensor"""
+    import json
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    
+    if user_id:
+        sensor = db.execute(
+            """SELECT * FROM user_sensors WHERE id = ? AND user_id = ?""",
+            (sensor_id, user_id)
+        ).fetchone()
+    else:
+        sensor = db.execute(
+            """SELECT * FROM user_sensors WHERE id = ?""",
+            (sensor_id,)
+        ).fetchone()
+    
+    db.close()
+    
+    if sensor:
+        sensor_dict = dict(sensor)
+        try:
+            sensor_dict['config'] = json.loads(sensor_dict['config']) if isinstance(sensor_dict['config'], str) else sensor_dict['config']
+        except:
+            sensor_dict['config'] = {}
+        return sensor_dict
+    
+    return None
+
+def update_sensor(sensor_id, user_id, name=None, sensor_type=None, interface=None, config=None, active=None, available=None):
+    """Update sensor settings"""
+    import json
+    db = get_db()
+    
+    updates = []
+    values = []
+    
+    if name is not None:
+        updates.append("name = ?")
+        values.append(name)
+    if sensor_type is not None:
+        updates.append("type = ?")
+        values.append(sensor_type)
+    if interface is not None:
+        updates.append("interface = ?")
+        values.append(interface)
+    if config is not None:
+        updates.append("config = ?")
+        config_json = json.dumps(config) if isinstance(config, dict) else config
+        values.append(config_json)
+    if active is not None:
+        updates.append("active = ?")
+        values.append(active)
+    if available is not None:
+        updates.append("available = ?")
+        values.append(available)
+    
+    if not updates:
+        db.close()
+        return False
+    
+    updates.append("updated_at = CURRENT_TIMESTAMP")
+    values.append(sensor_id)
+    values.append(user_id)
+    
+    try:
+        db.execute(
+            f"""UPDATE user_sensors 
+               SET {', '.join(updates)} 
+               WHERE id = ? AND user_id = ?""",
+            values
+        )
+        db.commit()
+        db.close()
+        return True
+    except Exception as e:
+        print(f"Error updating sensor: {e}")
+        db.close()
+        return False
+
+def delete_sensor(sensor_id, user_id):
+    """Delete a sensor"""
+    db = get_db()
+    
+    db.execute(
+        """DELETE FROM user_sensors WHERE id = ? AND user_id = ?""",
+        (sensor_id, user_id)
+    )
+    
+    db.commit()
+    db.close()
+    return True
+
+def get_active_sensors(user_id):
+    """Get all active sensors for a user"""
+    import json
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    
+    sensors = db.execute(
+        """SELECT * FROM user_sensors WHERE user_id = ? AND active = 1 ORDER BY created_at DESC""",
+        (user_id,)
+    ).fetchall()
+    
+    db.close()
+    
+    result = []
+    for sensor in sensors:
+        sensor_dict = dict(sensor)
+        try:
+            sensor_dict['config'] = json.loads(sensor_dict['config']) if isinstance(sensor_dict['config'], str) else sensor_dict['config']
+        except:
+            sensor_dict['config'] = {}
+        result.append(sensor_dict)
+    
+    return result
+
+def update_sensor_availability(sensor_id, available):
+    """Update sensor availability status"""
+    db = get_db()
+    
+    db.execute(
+        """UPDATE user_sensors SET available = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
+        (available, sensor_id)
+    )
+    
+    db.commit()
+    db.close()
+
+def update_sensor_last_read(sensor_id):
+    """Update sensor last read timestamp"""
+    db = get_db()
+    
+    db.execute(
+        """UPDATE user_sensors SET last_read = CURRENT_TIMESTAMP WHERE id = ?""",
+        (sensor_id,)
+    )
+    
+    db.commit()
+    db.close()
+
+def get_sensors_count(user_id):
+    """Get count of sensors for a user"""
+    db = get_db()
+    
+    count = db.execute(
+        """SELECT COUNT(*) as count FROM user_sensors WHERE user_id = ?""",
+        (user_id,)
+    ).fetchone()['count']
+    
+    db.close()
+    return count
+
+def get_available_sensors_count(user_id):
+    """Get count of available/connected sensors for a user"""
+    db = get_db()
+    
+    count = db.execute(
+        """SELECT COUNT(*) as count FROM user_sensors WHERE user_id = ? AND available = 1""",
+        (user_id,)
+    ).fetchone()['count']
+    
+    db.close()
+    return count

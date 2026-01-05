@@ -591,6 +591,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ========================================
+  // SENSOR SETTINGS
+  // ========================================
+  // SENSOR SETTINGS (now on dedicated /sensors page)
+  // ========================================
+  // Sensor configuration moved to sensors.html and sensors.js
+  // No sensor elements on settings page
+
+  // ========================================
   // INITIALIZE
   // ========================================
   loadSettings();

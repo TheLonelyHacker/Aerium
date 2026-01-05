@@ -20,7 +20,9 @@ from database import (get_db, init_db, get_user_by_username, create_user, get_us
                       update_export_timestamp, delete_scheduled_export,
                       get_user_thresholds, update_user_thresholds, check_threshold_status,
                       grant_permission, revoke_permission, has_permission, get_user_permissions, get_users_with_permission,
-                      import_csv_readings, get_csv_import_stats)
+                      import_csv_readings, get_csv_import_stats,
+                      create_sensor, get_user_sensors, get_sensor_by_id, update_sensor, delete_sensor,
+                      get_active_sensors, update_sensor_availability, update_sensor_last_read)
 import json
 from flask import send_file
 try:
@@ -47,6 +49,7 @@ from database import cleanup_old_data
 from advanced_features import (AdvancedAnalytics, CollaborationManager, 
                                PerformanceOptimizer, VisualizationEngine)
 from advanced_features_routes import register_advanced_features
+
 
 
 app = Flask(__name__)
@@ -691,6 +694,12 @@ def live_page():
 def settings_page():
     return render_template("settings.html")  # Settings page
 
+@app.route("/sensors")
+@login_required
+def sensors_page():
+    """Sensor management and configuration page"""
+    return render_template("sensors.html")
+
 @app.route("/simulator")
 @login_required
 def simulator_page():
@@ -1182,6 +1191,284 @@ def import_stats():
     """Get data import statistics"""
     stats = get_csv_import_stats()
     return jsonify(stats)
+
+# ================================================================================
+#                        SENSOR MANAGEMENT ROUTES
+# ================================================================================
+
+_sensor_mode = os.getenv('USE_SCD30', '1')  # Default to real if available
+_sensor_last_read = 0
+
+@app.route("/api/sensor/status")
+@login_required
+def sensor_status():
+    """Get current sensor mode and availability status"""
+    global _sensor_mode, _sensor_last_read
+    
+    try:
+        # Try to import and check if SCD30 is available
+        from app.sensors.scd30 import SCD30
+        scd30 = SCD30()
+        
+        # Try to read to verify it's working
+        try:
+            reading = scd30.read()
+            available = reading is not None
+            _sensor_last_read = time.time()
+        except Exception:
+            available = False
+    except Exception:
+        available = False
+    
+    mode = "real" if _sensor_mode != "0" and available else "simulation"
+    
+    return jsonify({
+        'mode': mode,
+        'available': available,
+        'last_read': _sensor_last_read,
+        'driver': 'SCD30' if available else 'None'
+    })
+
+@app.route("/api/sensor/mode", methods=["POST"])
+@login_required
+def set_sensor_mode():
+    """Set sensor mode (real or simulation)"""
+    global _sensor_mode
+    
+    data = request.get_json()
+    mode = data.get('mode', 'simulation')
+    
+    if mode not in ['real', 'simulation']:
+        return jsonify({'error': 'Invalid mode. Must be "real" or "simulation"'}), 400
+    
+    # Update environment for future reads
+    _sensor_mode = "1" if mode == "real" else "0"
+    os.environ['USE_SCD30'] = _sensor_mode
+    
+    # Log the change
+    try:
+        log_audit(session.get('user_id'), 'SENSOR_MODE_CHANGE', 'sensor',
+                 0, 'new_mode', mode, request.remote_addr)
+    except Exception:
+        pass
+    
+    return jsonify({
+        'success': True,
+        'mode': mode,
+        'message': f'Mode capteur défini à: {mode}'
+    })
+
+@app.route("/api/sensor/test", methods=["POST"])
+@login_required
+def test_sensor():
+    """Test SCD30 sensor connection"""
+    data = request.get_json()
+    bus = int(data.get('bus', 1))
+    address = data.get('address', '0x61')
+    
+    # Convert hex address to int if needed
+    if isinstance(address, str):
+        address = int(address, 16)
+    
+    try:
+        from app.sensors.scd30 import SCD30
+        scd30 = SCD30(bus=bus, address=address)
+        reading = scd30.read()
+        
+        if reading and 'co2' in reading:
+            return jsonify({
+                'success': True,
+                'co2': round(reading['co2'], 2),
+                'temperature': round(reading.get('temperature', 0), 2),
+                'humidity': round(reading.get('humidity', 0), 2),
+                'message': 'Capteur détecté avec succès'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Capteur détecté mais pas de lecture disponible'
+            }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Impossible de se connecter au capteur: {str(e)}'
+        }), 400
+
+# ================================================================================
+#                        MULTI-SENSOR API ENDPOINTS
+# ================================================================================
+
+@app.route("/api/sensors", methods=["GET"])
+@login_required
+def get_sensors_list():
+    """Get all sensors for current user"""
+    try:
+        user_id = session.get('user_id')
+        sensors = get_user_sensors(user_id)
+        return jsonify(sensors)
+    except Exception as e:
+        print(f"Error getting sensors: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route("/api/sensors", methods=["POST"])
+@login_required
+def create_new_sensor():
+    """Create a new sensor"""
+    try:
+        user_id = session.get('user_id')
+        data = request.get_json()
+        
+        name = data.get('name', '').strip()
+        sensor_type = data.get('type', 'scd30')
+        interface = data.get('interface', 'i2c')
+        config = data.get('config', {})
+        
+        if not name:
+            return jsonify({'error': 'Sensor name is required'}), 400
+        
+        sensor_id = create_sensor(user_id, name, sensor_type, interface, config)
+        
+        if not sensor_id:
+            return jsonify({'error': 'Sensor name already exists for this user'}), 400
+        
+        # Log action
+        try:
+            log_audit(user_id, 'SENSOR_CREATED', 'sensor', sensor_id, None, f'{name} ({sensor_type})', request.remote_addr)
+        except:
+            pass
+        
+        sensor = get_sensor_by_id(sensor_id, user_id)
+        return jsonify(sensor), 201
+    except Exception as e:
+        print(f"Error creating sensor: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route("/api/sensors/<int:sensor_id>", methods=["PUT"])
+@login_required
+def update_sensor_config(sensor_id):
+    """Update sensor configuration"""
+    try:
+        user_id = session.get('user_id')
+        data = request.get_json()
+        
+        # Verify ownership
+        sensor = get_sensor_by_id(sensor_id, user_id)
+        if not sensor:
+            return jsonify({'error': 'Sensor not found or not accessible'}), 404
+        
+        # Update fields if provided
+        name = data.get('name')
+        sensor_type = data.get('type')
+        interface = data.get('interface')
+        config = data.get('config')
+        active = data.get('active')
+        
+        update_sensor(sensor_id, user_id, 
+                     name=name,
+                     sensor_type=sensor_type,
+                     interface=interface,
+                     config=config,
+                     active=active)
+        
+        # Log action
+        try:
+            log_audit(user_id, 'SENSOR_UPDATED', 'sensor', sensor_id, None, name or sensor['name'], request.remote_addr)
+        except:
+            pass
+        
+        updated_sensor = get_sensor_by_id(sensor_id, user_id)
+        return jsonify(updated_sensor)
+    except Exception as e:
+        print(f"Error updating sensor: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route("/api/sensors/<int:sensor_id>", methods=["DELETE"])
+@login_required
+def delete_sensor_endpoint(sensor_id):
+    """Delete a sensor"""
+    try:
+        user_id = session.get('user_id')
+        
+        # Verify ownership
+        sensor = get_sensor_by_id(sensor_id, user_id)
+        if not sensor:
+            return jsonify({'error': 'Sensor not found or not accessible'}), 404
+        
+        delete_sensor(sensor_id, user_id)
+        
+        # Log action
+        try:
+            log_audit(user_id, 'SENSOR_DELETED', 'sensor', sensor_id, sensor['name'], None, request.remote_addr)
+        except:
+            pass
+        
+        return jsonify({'success': True, 'message': 'Sensor deleted'})
+    except Exception as e:
+        print(f"Error deleting sensor: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route("/api/sensors/test", methods=["POST"])
+@login_required
+def test_sensor_connection():
+    """Test sensor connection with provided configuration"""
+    try:
+        data = request.get_json()
+        sensor_type = data.get('type', 'scd30')
+        interface = data.get('interface', 'i2c')
+        config = data.get('config', {})
+        
+        # Test SCD30 sensor
+        if sensor_type == 'scd30' and interface == 'i2c':
+            try:
+                from app.sensors.scd30 import SCD30
+                bus = config.get('bus', 1)
+                address = config.get('address', '0x61')
+                
+                # Convert hex address if needed
+                if isinstance(address, str):
+                    address = int(address, 16)
+                
+                scd30 = SCD30(bus=int(bus), address=address)
+                reading = scd30.read()
+                
+                if reading and 'co2' in reading:
+                    return jsonify({
+                        'success': True,
+                        'co2': round(reading.get('co2', 0), 2),
+                        'temperature': round(reading.get('temperature', 0), 2),
+                        'humidity': round(reading.get('humidity', 0), 2),
+                        'message': 'Capteur détecté'
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Capteur trouvé mais pas de lecture'
+                    })
+            except Exception as e:
+                return jsonify({
+                    'success': False,
+                    'error': f'Erreur SCD30: {str(e)}'
+                })
+        
+        # Add support for other sensor types here
+        elif sensor_type == 'mhz19':
+            return jsonify({
+                'success': False,
+                'error': 'MH-Z19 support en développement'
+            })
+        
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Type de capteur non supporté: {sensor_type}'
+            })
+            
+    except Exception as e:
+        print(f"Error testing sensor: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Erreur de test: {str(e)}'
+        }), 500
 
 # ================================================================================
 #                        ANALYTICS ROUTES (ENHANCED)
