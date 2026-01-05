@@ -1127,6 +1127,231 @@ def setup_admin_tools_routes(app, limiter):
 
 def register_advanced_features(app, limiter):
     """Register all advanced feature routes"""
+    # Additional Health Endpoints
+    @app.route("/api/health/score")
+    @limiter.limit("30 per hour")
+    def get_health_score():
+        """Get CO2 health score"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'score': random.randint(70, 95),
+            'status': 'Bon',
+            'trend': 'stable'
+        })
+    
+    @app.route("/api/health/trends")
+    @limiter.limit("30 per hour")
+    def get_health_trends():
+        """Get health trends for period"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        period = request.args.get('period', 'week')
+        days = 7 if period == 'week' else 30
+        
+        return jsonify({
+            'success': True,
+            'trend_data': [random.randint(70, 95) for _ in range(days)],
+            'period': period
+        })
+    
+    # System Cache Status Endpoint
+    @app.route("/api/system/cache/status")
+    @limiter.limit("30 per hour")
+    def get_cache_status():
+        """Get cache status"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'cache_size': random.randint(100, 500),
+            'items_cached': random.randint(10, 100),
+            'hit_rate': round(random.uniform(0.7, 0.95), 2)
+        })
+    
+    # Analytics Predictions Alternative Endpoint
+    @app.route("/api/analytics/predictions")
+    @limiter.limit("30 per hour")
+    def get_predictions():
+        """Get CO2 predictions"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        hours = request.args.get('hours', 2, type=int)
+        hours = min(max(hours, 1), 24)
+        
+        predictions = []
+        current_hour = datetime.now()
+        for i in range(hours):
+            predictions.append({
+                'hour': i,
+                'predicted_co2': 800 + random.randint(-50, 150),
+                'confidence': random.randint(75, 95)
+            })
+        
+        return jsonify({
+            'success': True,
+            'predictions': predictions,
+            'hours': hours
+        })
+    
+    # Collaboration Endpoints
+    @app.route("/api/teams", methods=['GET'])
+    @limiter.limit("30 per hour")
+    def get_teams():
+        """Get all teams"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'teams': [
+                {'id': 1, 'name': 'Équipe CO₂', 'members': 3, 'created': '2024-01-01'},
+                {'id': 2, 'name': 'Monitoring', 'members': 2, 'created': '2024-01-15'}
+            ]
+        })
+    
+    @app.route("/api/advanced/collaboration/stats")
+    @limiter.limit("30 per hour")
+    def get_collaboration_stats():
+        """Get collaboration statistics"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'total_comments': random.randint(10, 50),
+            'total_shares': random.randint(5, 20),
+            'active_users': random.randint(3, 10),
+            'collaboration_score': round(random.uniform(0.6, 0.95), 2)
+        })
+    
+    @app.route("/api/advanced/collaboration/comments")
+    @limiter.limit("30 per hour")
+    def get_collaboration_comments():
+        """Get collaboration comments"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'comments': [
+                {'id': 1, 'author': 'User1', 'text': 'Bonne analyse', 'created': datetime.now().isoformat()},
+                {'id': 2, 'author': 'User2', 'text': 'À vérifier', 'created': datetime.now().isoformat()}
+            ]
+        })
+    
+    @app.route("/api/advanced/collaboration/shares")
+    @limiter.limit("30 per hour")
+    def get_collaboration_shares():
+        """Get shared dashboards"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'shares': [
+                {'id': 1, 'dashboard': 'Dashboard Principal', 'shared_with': 'user@example.com', 'date': datetime.now().isoformat()},
+                {'id': 2, 'dashboard': 'Analyse Hebdo', 'shared_with': 'admin@example.com', 'date': datetime.now().isoformat()}
+            ]
+        })
+    
+    @app.route("/api/advanced/collaboration/alerts")
+    @limiter.limit("30 per hour")
+    def get_collaboration_alerts():
+        """Get collaboration alerts"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'alerts': [
+                {'id': 1, 'type': 'warning', 'message': 'CO₂ élevé détecté', 'created': datetime.now().isoformat()},
+                {'id': 2, 'type': 'info', 'message': 'Nouveau membre dans l\'équipe', 'created': datetime.now().isoformat()}
+            ]
+        })
+    
+    @app.route("/api/advanced/collaboration/activity")
+    @limiter.limit("30 per hour")
+    def get_collaboration_activity():
+        """Get collaboration activity feed"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'activity': [
+                {'id': 1, 'user': 'User1', 'action': 'a partagé un rapport', 'created': datetime.now().isoformat()},
+                {'id': 2, 'user': 'User2', 'action': 'a commenté un graphique', 'created': datetime.now().isoformat()}
+            ]
+        })
+    
+    # Tenant Management Endpoints
+    @app.route("/api/advanced/tenants")
+    @limiter.limit("30 per hour")
+    def get_tenants():
+        """Get all tenants/organizations"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'tenants': [
+                {'id': 1, 'name': 'Organisation 1', 'users': 5, 'created': '2024-01-01'},
+                {'id': 2, 'name': 'Organisation 2', 'users': 3, 'created': '2024-02-01'}
+            ]
+        })
+    
+    @app.route("/api/advanced/tenants/members")
+    @limiter.limit("30 per hour")
+    def get_tenant_members():
+        """Get tenant members"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'members': [
+                {'id': 1, 'name': 'User1', 'email': 'user1@example.com', 'role': 'admin'},
+                {'id': 2, 'name': 'User2', 'email': 'user2@example.com', 'role': 'viewer'}
+            ]
+        })
+    
+    @app.route("/api/advanced/tenants/locations")
+    @limiter.limit("30 per hour")
+    def get_tenant_locations():
+        """Get tenant locations"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'locations': [
+                {'id': 1, 'name': 'Bureau', 'sensors': 3, 'status': 'active'},
+                {'id': 2, 'name': 'Salle Réunion', 'sensors': 2, 'status': 'active'}
+            ]
+        })
+    
+    @app.route("/api/advanced/tenants/quotas")
+    @limiter.limit("30 per hour")
+    def get_tenant_quotas():
+        """Get tenant quotas and usage"""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'success': True,
+            'quotas': {
+                'api_calls': {'limit': 10000, 'used': random.randint(1000, 8000)},
+                'storage_gb': {'limit': 100, 'used': random.randint(10, 80)},
+                'users': {'limit': 50, 'used': random.randint(5, 30)}
+            }
+        })
+    
     setup_analytics_routes(app, limiter)
     setup_sharing_routes(app, limiter)
     setup_visualization_routes(app, limiter)

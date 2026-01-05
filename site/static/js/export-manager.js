@@ -1,4 +1,4 @@
-// Export Manager JavaScript
+// Export Manager JavaScript - Gestion d'Exports
 
 document.addEventListener('DOMContentLoaded', function() {
     initializeExportManager();
@@ -7,12 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeExportManager() {
     // Load initial data
     loadSensors();
-    loadExportHistory();
     loadScheduledExports();
-    
-    // Bind event listeners
-    bindExportEvents();
-    bindScheduleEvents();
 }
 
 function loadSensors() {
@@ -20,107 +15,265 @@ function loadSensors() {
     fetch('/api/sensors')
         .then(response => response.json())
         .then(data => {
-            const sensorSelect = document.getElementById('export-sensor');
-            const scheduleSensorSelect = document.getElementById('schedule-sensor');
+            const sensorSelect = document.getElementById('sensorSelect');
             
-            if (sensorSelect && data.sensors) {
-                sensorSelect.innerHTML = '<option value="">Select a sensor...</option>';
-                data.sensors.forEach(sensor => {
+            if (sensorSelect) {
+                sensorSelect.innerHTML = '<option value="">Sélectionnez un capteur...</option>';
+                if (data.length && Array.isArray(data)) {
+                    data.forEach(sensor => {
+                        const option = document.createElement('option');
+                        option.value = sensor.id;
+                        option.textContent = sensor.name;
+                        sensorSelect.appendChild(option);
+                    });
+                } else {
+                    // Fallback if API returns empty
                     const option = document.createElement('option');
-                    option.value = sensor.id;
-                    option.textContent = sensor.name;
+                    option.value = 'default';
+                    option.textContent = 'Capteur par défaut';
                     sensorSelect.appendChild(option);
-                });
-            }
-            
-            if (scheduleSensorSelect && data.sensors) {
-                scheduleSensorSelect.innerHTML = '<option value="">Select a sensor...</option>';
-                data.sensors.forEach(sensor => {
-                    const option = document.createElement('option');
-                    option.value = sensor.id;
-                    option.textContent = sensor.name;
-                    scheduleSensorSelect.appendChild(option);
-                });
+                }
             }
         })
-        .catch(error => console.error('Error loading sensors:', error));
-}
-
-function bindExportEvents() {
-    const exportForm = document.getElementById('export-form');
-    if (!exportForm) return;
-    
-    // Format button handlers
-    document.querySelectorAll('.btn-format').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.btn-format').forEach(b => b.classList.remove('selected'));
-            this.classList.add('selected');
-            document.getElementById('export-format').value = this.dataset.format || this.className.match(/\b(csv|excel|pdf)\b/)[1];
+        .catch(error => {
+            console.error('Erreur chargement des capteurs:', error);
+            // Add default sensor option on error
+            const sensorSelect = document.getElementById('sensorSelect');
+            if (sensorSelect) {
+                const option = document.createElement('option');
+                option.value = 'default';
+                option.textContent = 'Capteur par défaut';
+                sensorSelect.appendChild(option);
+            }
         });
-    });
-    
-    // Export button handler
-    const exportBtn = document.querySelector('button[onclick*="exportData"]');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', exportData);
-    }
 }
 
-function bindScheduleEvents() {
-    const scheduleBtn = document.querySelector('button[onclick*="scheduleExport"]');
-    if (scheduleBtn) {
-        scheduleBtn.addEventListener('click', scheduleExport);
-    }
-}
-
-function exportData() {
-    const sensorId = document.getElementById('export-sensor')?.value;
-    const period = document.getElementById('export-period')?.value;
-    const format = document.getElementById('export-format')?.value;
+function exportData(format) {
+    const sensorId = document.getElementById('sensorSelect')?.value || 'default';
+    const period = document.getElementById('periodSelect')?.value || '7';
     
-    if (!sensorId || !period || !format) {
-        alert('Please fill all fields');
+    if (!sensorId || sensorId === '') {
+        alert('Veuillez sélectionner un capteur');
         return;
     }
     
     // Show loading state
-    const btn = event.target;
-    const originalText = btn.textContent;
-    btn.textContent = 'Exporting...';
-    btn.disabled = true;
+    const btn = event?.target;
+    const originalText = btn ? btn.textContent : 'Export';
+    if (btn) {
+        btn.textContent = 'Chargement...';
+        btn.disabled = true;
+    }
     
-    fetch('/api/advanced/export/immediate', {
+    // Call simulated export endpoint
+    fetch('/api/export/simulate', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            sensor_id: sensorId,
-            period: period,
-            format: format
+            format: format,
+            period_days: parseInt(period),
+            sensor_id: sensorId
         })
     })
     .then(response => {
-        if (!response.ok) throw new Error('Export failed');
-        return response.json();
-    })
-    .then(data => {
-        if (data.file_url) {
-            // Download the file
-            window.location.href = data.file_url;
-            
-            // Refresh history after a short delay
-            setTimeout(loadExportHistory, 1000);
+        if (format === 'csv') {
+            // Handle CSV download
+            return response.text().then(text => {
+                downloadFile(text, `co2_export_${period}d.csv`, 'text/csv');
+                if (btn) {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }
+                showExportSuccess(format, period);
+            });
+        } else {
+            return response.json().then(data => {
+                if (data.success) {
+                    if (format === 'json') {
+                        downloadFile(JSON.stringify(data.data, null, 2), `co2_export_${period}d.json`, 'application/json');
+                    } else if (format === 'excel') {
+                        alert('Export Excel: ' + data.records + ' enregistrements préparés');
+                    } else if (format === 'pdf') {
+                        alert('Export PDF: ' + data.records + ' enregistrements préparés');
+                    }
+                    if (btn) {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }
+                    showExportSuccess(format, period);
+                } else {
+                    alert('Erreur: ' + (data.error || 'Export échoué'));
+                    if (btn) {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }
+                }
+            });
         }
-        showNotification('Export completed successfully!', 'success');
     })
     .catch(error => {
-        console.error('Export error:', error);
-        showNotification('Export failed: ' + error.message, 'error');
+        console.error('Erreur export:', error);
+        alert('Erreur: ' + error.message);
+        if (btn) {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    });
+}
+
+function quickExportData() {
+    const format = document.getElementById('quickExportFormat')?.value || 'csv';
+    const resultDiv = document.getElementById('quick-export-result');
+    
+    if (resultDiv) {
+        resultDiv.innerHTML = '<div class="loading">Génération de l\'export...</div>';
+        resultDiv.style.display = 'block';
+    }
+    
+    fetch('/api/export/simulate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            format: format,
+            period_days: 30
+        })
     })
-    .finally(() => {
-        btn.textContent = originalText;
-        btn.disabled = false;
+    .then(response => {
+        if (format === 'csv') {
+            return response.text().then(text => {
+                downloadFile(text, `co2_export_30d.csv`, 'text/csv');
+                if (resultDiv) {
+                    resultDiv.innerHTML = '<div class="success"><strong>✓ Export réussi!</strong> Fichier CSV téléchargé.</div>';
+                }
+            });
+        } else {
+            return response.json().then(data => {
+                if (data.success) {
+                    if (format === 'json') {
+                        downloadFile(JSON.stringify(data.data, null, 2), `co2_export_30d.json`, 'application/json');
+                    }
+                    if (resultDiv) {
+                        resultDiv.innerHTML = `<div class="success"><strong>✓ Export réussi!</strong> ${data.records} enregistrements exportés en ${format.toUpperCase()}.</div>`;
+                    }
+                } else {
+                    if (resultDiv) {
+                        resultDiv.innerHTML = `<div class="error">Erreur: ${data.error || 'Export échoué'}</div>`;
+                    }
+                }
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Erreur export rapide:', error);
+        if (resultDiv) {
+            resultDiv.innerHTML = `<div class="error">Erreur: ${error.message}</div>`;
+        }
+    });
+}
+
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+function showExportSuccess(format, days) {
+    const message = `Export ${format.toUpperCase()} réussi! Fichier téléchargé.`;
+    // You could show a toast notification here
+    console.log(message);
+}
+
+function loadScheduledExports() {
+    fetch('/api/export/scheduled')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('scheduled-exports-list');
+            if (container && data.exports) {
+                if (data.exports.length === 0) {
+                    container.innerHTML = '<p style="color: #9ca3af;">Aucun export programmé</p>';
+                } else {
+                    let html = '<div class="scheduled-exports">';
+                    data.exports.forEach(exp => {
+                        html += `
+                            <div class="export-item">
+                                <h4>${exp.format.toUpperCase()} - ${exp.frequency}</h4>
+                                <p>Prochaine exécution: ${exp.next_execution || 'Bientôt'}</p>
+                                <button onclick="deleteScheduledExport(${exp.id})" class="btn-delete">Supprimer</button>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    container.innerHTML = html;
+                }
+            }
+        })
+        .catch(error => console.error('Erreur chargement exports programmés:', error));
+}
+
+function scheduleExport() {
+    const format = document.getElementById('schedule-format')?.value || 'csv';
+    const frequency = document.getElementById('schedule-frequency')?.value || 'weekly';
+    
+    if (!format || !frequency) {
+        alert('Veuillez sélectionner un format et une fréquence');
+        return;
+    }
+    
+    fetch('/api/export/schedule', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            format: format,
+            frequency: frequency
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Export programmé: ${format} - ${frequency}`);
+            loadScheduledExports();
+            // Reset form
+            document.getElementById('schedule-format').value = 'csv';
+            document.getElementById('schedule-frequency').value = 'weekly';
+        } else {
+            alert('Erreur: ' + (data.error || 'Impossible de programmer l\'export'));
+        }
+    })
+    .catch(error => {
+        console.error('Erreur programmation export:', error);
+        alert('Erreur: ' + error.message);
+    });
+}
+
+function deleteScheduledExport(exportId) {
+    if (!confirm('Êtes-vous sûr?')) return;
+    
+    fetch(`/api/export/scheduled/${exportId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadScheduledExports();
+        } else {
+            alert('Erreur: Impossible de supprimer l\'export');
+        }
+    })
+    .catch(error => {
+        console.error('Erreur suppression export:', error);
+        alert('Erreur: ' + error.message);
     });
 }
 

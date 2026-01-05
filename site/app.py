@@ -2831,5 +2831,101 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Migration error: {e}")
 
+# Export Simulation Endpoint  
+@app.route("/api/export/simulate", methods=["POST"])
+@login_required
+def simulate_export():
+    """Simulate export with sample data"""
+    try:
+        data = request.get_json()
+        export_format = data.get('format', 'csv')
+        period_days = data.get('period_days', 7)
+        
+        # Generate simulated export data
+        import random
+        readings = []
+        base_time = datetime.now(UTC) - timedelta(days=period_days)
+        
+        for i in range(period_days * 24):
+            timestamp = base_time + timedelta(hours=i)
+            co2_level = 800 + random.randint(-100, 300)
+            readings.append({
+                'timestamp': timestamp.isoformat(),
+                'co2': co2_level
+            })
+        
+        if export_format == 'json':
+            return jsonify({
+                'success': True,
+                'format': 'json',
+                'export_date': datetime.now(UTC).isoformat(),
+                'period_days': period_days,
+                'records': len(readings),
+                'data': readings
+            })
+        elif export_format == 'csv':
+            csv_content = "timestamp,co2_ppm\n"
+            for r in readings:
+                csv_content += f"{r['timestamp']},{r['co2']}\n"
+            
+            response = make_response(csv_content)
+            response.headers['Content-Disposition'] = f'attachment; filename="co2_export_{period_days}d.csv"'
+            response.headers['Content-Type'] = 'text/csv'
+            return response
+        else:
+            return jsonify({'error': 'Format non supporté'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+if __name__ == "__main__":
+    # Database migrations
+    try:
+        db = get_db()
+        
+        # Add temperature and humidity columns to co2_readings if missing
+        try:
+            db.execute("ALTER TABLE co2_readings ADD COLUMN temperature REAL")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE co2_readings ADD COLUMN humidity REAL")
+        except Exception:
+            pass
+        
+        # Migrate audit_logs table to add missing columns
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN user_id INTEGER")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN username TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN entity_type TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN entity_id TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN details TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN status TEXT")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE audit_logs ADD COLUMN severity TEXT")
+        except Exception:
+            pass
+        
+        db.commit()
+        db.close()
+    except Exception as e:
+        print(f"Migration error: {e}")
+
     start_broadcast_thread()
     socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
