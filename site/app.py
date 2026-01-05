@@ -23,8 +23,18 @@ from database import (get_db, init_db, get_user_by_username, create_user, get_us
                       import_csv_readings, get_csv_import_stats)
 import json
 from flask import send_file
+try:
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except Exception as e:
+    HTML = None
+    WEASYPRINT_AVAILABLE = False
+    # WeasyPrint requires system libraries (GTK) - PDF export will be unavailable
+    # This is normal on Windows and can be safely ignored
 import io
-from weasyprint import HTML
 import threading
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -89,6 +99,22 @@ register_advanced_features(app, limiter)
 
 # Register Jinja2 globals for templates
 app.jinja_env.globals['is_admin'] = is_admin
+
+# ================================================================================
+#                    CONTEXT PROCESSOR
+# ================================================================================
+
+@app.context_processor
+def inject_user_context():
+    """Inject user context variables into all templates"""
+    user_is_admin = False
+    if 'user_id' in session:
+        user_is_admin = is_admin(session['user_id'])
+    
+    return {
+        'current_user_is_admin': user_is_admin,
+        'is_logged_in': 'user_id' in session
+    }
 
 # ================================================================================
 #                    SECURITY HEADERS & MIDDLEWARE
@@ -620,17 +646,7 @@ def settings_page():
 @app.route("/simulator")
 @login_required
 def simulator_page():
-    """Simulator control page for testing scenarios"""
-    # Check if user is admin
-    user_id = session.get('user_id')
-    if not user_id:
-        return redirect('/login')
-    
-    # Use the is_admin function from database module
-    if not is_admin(user_id):
-        flash('Accès réservé aux administrateurs', 'error')
-        return redirect('/dashboard')
-    
+    """Simulator control page for testing scenarios - accessible to all users"""
     return render_template("simulator.html")
 
 @app.route("/visualization")
@@ -1520,6 +1536,10 @@ def generate_pdf_report():
     """
     
     # Generate PDF
+    if not WEASYPRINT_AVAILABLE or HTML is None:
+        return jsonify({
+            'error': 'WeasyPrint is not available. Install system dependencies: https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#installation'
+        }), 500
     try:
         pdf = HTML(string=html_content).write_pdf()
         response = make_response(pdf)
@@ -1527,7 +1547,7 @@ def generate_pdf_report():
         response.headers['Content-Type'] = 'application/pdf'
         return response
     except Exception as e:
-        return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to generate PDF: {str(e)}'}), 500
 
 @app.route("/api/history/<range>")
 def history_range(range):
