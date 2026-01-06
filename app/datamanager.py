@@ -9,7 +9,6 @@ class DataManager:
     def look_state(self):
         return os.path.exists(self.path)   
     
-    
     def write(self,data):
         try:    
             with open(self.path,'w') as f:
@@ -33,3 +32,13 @@ class DataManager:
         all_data = self.read()
         all_data[id_alarm] = new_data
         self.write(all_data)
+        
+    def get_data(self,id_alarm):
+        all_data = self.read()
+        return id_alarm,all_data[id_alarm]
+    
+    def delete(self,id_alarm):
+        all_data = self.read()
+        if id_alarm in all_data:
+            del all_data[id_alarm]
+            self.write(all_data)

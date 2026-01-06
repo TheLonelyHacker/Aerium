@@ -1,5 +1,5 @@
 import uuid
-
+#* KivyMD 
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.appbar import MDTopAppBar, MDTopAppBarTitle
@@ -8,7 +8,7 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.pickers import MDTimePickerDialVertical
-
+#* fichier projet
 from alarmcard import AlarmCard
 from select_days import DaysDialog
 from datamanager import DataManager
@@ -22,7 +22,6 @@ class MainApp(MDApp):
 
         self.dataManager = DataManager(self.user_data_dir)
         self.total_alarms = {}
-
         screen = MDScreen()
         
         #* topBar
@@ -74,18 +73,19 @@ class MainApp(MDApp):
     def on_start(self):
         self.total_alarms = self.dataManager.read()
         self.alarm_from_data()
+        
     #* ajoute les alarmes enregistrees en json a l'interfaces 
     def alarm_from_data(self):
-        for data in self.total_alarms.values():
+        for alarm_id, data in self.total_alarms.items():
             hour_min = data["hour_min"]
             days_list = data["selected_days"]
-
+            active = data["active"]
             selected_days = (
                 ", ".join(day[:3] for day in days_list)
                 if days_list else "Tous les jours"
             )
 
-            self.add_alarm(hour_min, selected_days)
+            self.add_alarm(hour_min, selected_days, alarm_id, data, active)
             
     #* lance le time picker
     def show_time_picker(self, *args):
@@ -109,12 +109,13 @@ class MainApp(MDApp):
         )
         dialog.open()
         
-    #* gere la fermeture de la popup selection des jourse des jours
+    #* gere la fermeture de la popup selection des jours
     def on_dialog_dismiss(self, dialog, time):
         if dialog.state is False:
             alarm_data = {
                 "hour_min": time,
-                "selected_days": dialog.selected_days
+                "selected_days": dialog.selected_days,
+                "active": True
             }
 
             all_data = self.dataManager.read()
@@ -124,21 +125,22 @@ class MainApp(MDApp):
 
             self.dataManager.write(all_data)
             self.total_alarms = all_data
+            
             #* formate les jours selectionnes pour l'affichage "Lun, Mar, Mer"
             selected_days = (
                 ", ".join(day[:3] for day in dialog.selected_days)
                 if dialog.selected_days else "Tous les jours"
             )
 
-            self.add_alarm(time, selected_days)
+            self.add_alarm(time, selected_days, alarm_id, alarm_data, alarm_data["active"])
             
     #* ajoute une alarme a l'interface
-    def add_alarm(self, time, selected_days):
+    def add_alarm(self, time, selected_days, alarm_id, alarm_data, active):
         #* Supprime le texte si c'est la premiere alarme
         if self.label.parent:
             self.label.parent.remove_widget(self.label)
 
-        card = AlarmCard(time, selected_days)
+        card = AlarmCard(time, selected_days, alarm_id, alarm_data, active)
         self.alarms_layout.add_widget(card)
 
 
