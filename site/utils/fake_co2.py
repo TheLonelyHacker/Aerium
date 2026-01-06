@@ -18,6 +18,7 @@ _scenario = "normal"  # normal, office_hours, sleep, ventilation_active, anomaly
 _scenario_timer = 0
 _scenario_duration = 0
 _paused = False
+_last_update_second = 0  # Track last update to sync to full seconds
 
 # ==================== SIMULATION SCENARIOS ====================
 
@@ -49,22 +50,22 @@ class NormalScenario(SimulationScenario):
         
         # Apply CO2 drift
         if self.co2_trend == 1:
-            drift = random.uniform(3, 8)
+            drift = random.uniform(2, 6)
         elif self.co2_trend == -1:
-            drift = random.uniform(-8, -3)
+            drift = random.uniform(-6, -2)
         else:
-            drift = random.uniform(-2, 2)
+            drift = random.uniform(-1.5, 1.5)
         
         self.co2 += drift
-        self.co2 = max(400, min(1200, self.co2))
+        self.co2 = max(420, min(900, self.co2))
         
         # Temperature stable around 21-23°C
-        self.temp += random.uniform(-0.5, 0.5)
-        self.temp = max(19, min(25, self.temp))
+        self.temp += random.uniform(-0.3, 0.3)
+        self.temp = max(19, min(24, self.temp))
         
         # Humidity stable around 40-50%
-        self.humidity += random.uniform(-1, 1)
-        self.humidity = max(30, min(60, self.humidity))
+        self.humidity += random.uniform(-0.6, 0.6)
+        self.humidity = max(35, min(55, self.humidity))
 
 
 class OfficeHoursScenario(SimulationScenario):
@@ -75,16 +76,19 @@ class OfficeHoursScenario(SimulationScenario):
     
     def step(self):
         # Gradual CO2 increase as people work
-        self.co2 += random.uniform(5, 15)
-        self.co2 = max(400, min(1600, self.co2))
+        self.co2 += random.uniform(8, 18)
+        # After reaching high occupancy, CO2 tends to plateau
+        if self.co2 > 1200:
+            self.co2 += random.uniform(-10, 5)
+        self.co2 = max(450, min(1600, self.co2))
         
         # Temperature rises slightly with more occupants
-        self.temp += random.uniform(0.1, 0.3)
-        self.temp = max(19, min(26, self.temp))
+        self.temp += random.uniform(0.05, 0.15)
+        self.temp = max(20, min(26, self.temp))
         
         # Humidity increases with more people
-        self.humidity += random.uniform(0.5, 1.5)
-        self.humidity = max(30, min(70, self.humidity))
+        self.humidity += random.uniform(0.2, 0.8)
+        self.humidity = max(35, min(65, self.humidity))
 
 
 class SleepScenario(SimulationScenario):
@@ -95,36 +99,36 @@ class SleepScenario(SimulationScenario):
     
     def step(self):
         # Very stable, slight variation
-        self.co2 += random.uniform(-1, 1)
-        self.co2 = max(400, min(500, self.co2))
+        self.co2 += random.uniform(-0.8, 0.8)
+        self.co2 = max(380, min(480, self.co2))
         
         # Temperature slightly lower
-        self.temp += random.uniform(-0.2, 0.1)
-        self.temp = max(18, min(23, self.temp))
+        self.temp += random.uniform(-0.15, 0.1)
+        self.temp = max(18, min(22, self.temp))
         
         # Humidity stable
-        self.humidity += random.uniform(-0.5, 0.5)
-        self.humidity = max(35, min(55, self.humidity))
+        self.humidity += random.uniform(-0.4, 0.4)
+        self.humidity = max(38, min(52, self.humidity))
 
 
 class VentilationActiveScenario(SimulationScenario):
     """Ventilation running - rapid CO2 decrease"""
     def __init__(self):
         super().__init__()
-        self.co2 = 1400  # Start high
+        self.co2 = 1200  # Start high
     
     def step(self):
         # Rapid CO2 decrease due to ventilation
-        self.co2 -= random.uniform(20, 40)
-        self.co2 = max(400, self.co2)
+        self.co2 -= random.uniform(25, 50)
+        self.co2 = max(450, min(900, self.co2))
         
         # Temperature drops slightly with air exchange
-        self.temp -= random.uniform(0.1, 0.3)
-        self.temp = max(18, min(25, self.temp))
+        self.temp -= random.uniform(0.05, 0.2)
+        self.temp = max(18, min(24, self.temp))
         
         # Humidity decreases with ventilation
-        self.humidity -= random.uniform(1, 2)
-        self.humidity = max(30, min(70, self.humidity))
+        self.humidity -= random.uniform(0.5, 1.5)
+        self.humidity = max(30, min(65, self.humidity))
 
 
 class AnomalyScenario(SimulationScenario):
@@ -137,31 +141,31 @@ class AnomalyScenario(SimulationScenario):
     def step(self):
         if self.anomaly_type == 'spike':
             # Random spikes in CO2
-            if random.random() < 0.3:
-                self.co2 += random.uniform(200, 400)
+            if random.random() < 0.25:
+                self.co2 += random.uniform(150, 300)
             else:
-                self.co2 -= random.uniform(50, 100)
+                self.co2 -= random.uniform(30, 80)
         
         elif self.anomaly_type == 'drift':
             # Sensor drifting upward
-            self.co2 += random.uniform(10, 30)
+            self.co2 += random.uniform(5, 15)
         
         elif self.anomaly_type == 'intermittent':
             # Sensor dropping out randomly
-            if random.random() < 0.1:
-                self.co2 = random.choice([400, 800, 1200])
+            if random.random() < 0.08:
+                self.co2 = random.choice([420, 650, 900, 1200])
             else:
-                self.co2 += random.uniform(-5, 5)
+                self.co2 += random.uniform(-6, 6)
         
-        self.co2 = max(300, min(2500, self.co2))
+        self.co2 = max(320, min(2200, self.co2))
         
         # Temperature anomalies
-        self.temp += random.uniform(-1, 1)
-        self.temp = max(15, min(40, self.temp))
+        self.temp += random.uniform(-0.8, 0.8)
+        self.temp = max(16, min(34, self.temp))
         
         # Humidity anomalies
-        self.humidity += random.uniform(-3, 3)
-        self.humidity = max(10, min(95, self.humidity))
+        self.humidity += random.uniform(-2, 2)
+        self.humidity = max(20, min(90, self.humidity))
 
 
 # ==================== SCENARIO MANAGER ====================
@@ -199,12 +203,16 @@ def set_scenario(scenario_name: str, duration_minutes: int = 0):
 def generate_co2_data(realistic=True):
     """
     Generate realistic CO2, temperature, humidity data
+    Updates only once per second (synchronized to full seconds)
     
     Returns:
         dict: {'co2': int, 'temp': float, 'humidity': float}
     """
-    global _active_scenario, _scenario_timer, _scenario_duration, _paused
+    global _active_scenario, _scenario_timer, _scenario_duration, _paused, _last_update_second
 
+    # Get current second
+    current_second = int(datetime.now().timestamp())
+    
     # If paused, return the current values without advancing the simulation
     if _paused:
         return {
@@ -214,21 +222,27 @@ def generate_co2_data(realistic=True):
         }
     
     if not realistic:
-        # Random mode for testing
+        # Random mode for testing - still sync to seconds
+        if current_second != _last_update_second:
+            _last_update_second = current_second
         return {
             'co2': random.randint(400, 2000),
             'temp': round(random.uniform(18, 28), 1),
             'humidity': round(random.uniform(30, 70), 1)
         }
     
-    # Check if scenario duration expired
-    if _scenario_duration > 0:
-        _scenario_timer += 1
-        if _scenario_timer >= _scenario_duration:
-            set_scenario('normal')
-    
-    # Generate new values
-    _active_scenario.step()
+    # Only step forward once per second (synchronized)
+    if current_second != _last_update_second:
+        _last_update_second = current_second
+        
+        # Check if scenario duration expired
+        if _scenario_duration > 0:
+            _scenario_timer += 1
+            if _scenario_timer >= _scenario_duration:
+                set_scenario('normal')
+        
+        # Generate new values
+        _active_scenario.step()
     
     return {
         'co2': int(_active_scenario.co2),
@@ -300,7 +314,7 @@ def reset_state(base_value: int = 600, scenario: str = 'normal'):
         base_value: Starting CO2 value
         scenario: Initial scenario name
     """
-    global _active_scenario, _scenario, _scenario_timer, _scenario_duration, _paused
+    global _active_scenario, _scenario, _scenario_timer, _scenario_duration, _paused, _last_update_second
     
     if scenario in _scenarios:
         _active_scenario = _scenarios[scenario]
@@ -311,6 +325,7 @@ def reset_state(base_value: int = 600, scenario: str = 'normal'):
         _scenario_timer = 0
         _scenario_duration = 0
         _paused = False
+        _last_update_second = 0
 
 
 def set_paused(paused: bool):
