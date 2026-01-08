@@ -1,10 +1,10 @@
 @echo off
-REM Morpheus Kivy Test App Launcher
+REM Aerium Kivy Test App Launcher
 REM This script installs dependencies and runs the Kivy test app
 
 echo.
 echo ========================================
-echo  Morpheus Kivy Test App Launcher
+echo  Aerium Kivy Test App Launcher
 echo ========================================
 echo.
 
@@ -28,7 +28,7 @@ if errorlevel 1 (
 
 echo.
 echo Dependencies installed successfully!
-echo Launching Morpheus Kivy Test App...
+echo Launching Aerium Kivy Test App...
 echo.
 echo Note: Make sure the Flask webapp is running on http://localhost:5000
 echo.

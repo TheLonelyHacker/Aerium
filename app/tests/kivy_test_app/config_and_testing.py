@@ -1,5 +1,5 @@
 """
-Morpheus Kivy Test App - Configuration and Testing Guide
+Aerium Kivy Test App - Configuration and Testing Guide
 
 This file documents the API integration, data mapping, and testing procedures
 for the Kivy test application that mirrors the Flask webapp.
@@ -230,7 +230,7 @@ v1.0 - Initial Release
 """
 
 if __name__ == "__main__":
-    print("Morpheus Kivy Test App - Configuration Reference")
+    print("Aerium Kivy Test App - Configuration Reference")
     print("=" * 50)
     print("\nAvailable Endpoints:")
     for name, details in ENDPOINTS.items():

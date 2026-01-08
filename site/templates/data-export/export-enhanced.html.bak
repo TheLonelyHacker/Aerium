@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Rapport Avancé et Export - Morpheus{% endblock %}
+{% block title %}Rapport Avancé et Export - Aerium{% endblock %}
 
 {% block content %}
 <style>

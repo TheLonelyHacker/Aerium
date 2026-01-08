@@ -8,7 +8,7 @@ Run this with: python this_file.py
 def print_architecture():
     print("""
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                      🚀 MORPHEUS ADVANCED PLATFORM                           ║
+║                      🚀 AERIUM ADVANCED PLATFORM                           ║
 ║                          Architecture Overview                               ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 

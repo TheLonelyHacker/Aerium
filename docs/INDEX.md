@@ -1,13 +1,13 @@
-# Documentation Morpheus
+# Documentation Aerium
 
-Bienvenue dans la documentation du système de surveillance de la qualité de l'air CO₂ Morpheus.
+Bienvenue dans la documentation du système de surveillance de la qualité de l'air CO₂ Aerium.
 
 ## 🎯 Par Où Commencer ?
 
 ### 👤 Nouveaux Utilisateurs
 **Commencez ici** → [Guide de Démarrage](GUIDE-DEMARRAGE.md)
 
-Apprenez comment installer, configurer et utiliser Morpheus pour la première fois.
+Apprenez comment installer, configurer et utiliser Aerium pour la première fois.
 
 ### 📖 Utilisateurs Réguliers
 **Guide complet** → [Guide Utilisateur](GUIDE-UTILISATEUR.md)
@@ -159,16 +159,6 @@ Nous accueillons les contributions ! Voir :
 - ✅ API REST et WebSocket complètes
 - ✅ Fonctionnalités admin avancées
 - ✅ Analyses ML intégrées
-
----
-
-## 🙏 Remerciements
-
-Merci d'utiliser Morpheus ! Pour toute question, suggestion ou rapport de bug, n'hésitez pas à :
-
-- Ouvrir un ticket sur GitHub
-- Consulter la documentation
-- Contribuer au projet
 
 ---
 

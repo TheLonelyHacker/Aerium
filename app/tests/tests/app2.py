@@ -109,7 +109,7 @@ class MainScreen(Screen):
         
         # Titre
         title = Label(
-            text='[b]MORPHEUS[/b]',
+            text='[b]AERIUM[/b]',
             markup=True,
             font_size='32sp',
             size_hint=(1, 0.1),
@@ -190,7 +190,7 @@ class MainScreen(Screen):
         
         # Informations
         info = Label(
-            text='Morpheus analyse vos cycles de sommeil\npour un réveil optimal',
+            text='Aerium analyse vos cycles de sommeil\npour un réveil optimal',
             font_size='14sp',
             size_hint=(1, 0.1),
             color=(0.5, 0.5, 0.5, 1)
@@ -495,7 +495,7 @@ voir vos statistiques.
         self.manager.current = 'main'
 
 
-class MorpheusApp(App):
+class AeriumApp(App):
     """Application principale"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -515,4 +515,4 @@ class MorpheusApp(App):
 
 
 if __name__ == '__main__':
-    MorpheusApp().run()
+    AeriumApp().run()

@@ -1,11 +1,12 @@
 /*
 ================================================================================
-                  MORPHEUS CO₂ MONITORING - ENTRY POINT
+                  AERIUM CO₂ MONITORING - ENTRY POINT
 ================================================================================
 Main application entry point that coordinates module loading and initialization.
 Individual pages load their own feature modules (live.js, overview.js, etc).
 
 Module loading order (see base.html):
+console.log("✓ Aerium app loaded");
   1. utils.js       - Shared utilities, constants, state management
   2. settings.js    - Settings page functionality
   3. analytics.js   - Analytics page functionality
@@ -50,7 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
     startOverviewRefresh(); // Use dynamic interval based on settings
   }
 
-  console.log("✓ Morpheus app loaded");
+  console.log("✓ Aerium app loaded");
   console.log("🔧 Settings loaded:", getCachedSettings());
 })();
 

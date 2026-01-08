@@ -1,6 +1,6 @@
-# Guide de Démarrage avec Morpheus
+# Guide de Démarrage avec Aerium
 
-Guide complet pour installer, configurer et utiliser le système de surveillance CO₂ Morpheus.
+Guide complet pour installer, configurer et utiliser le système de surveillance CO₂ Aerium.
 
 ## 📋 Table des Matières
 
@@ -31,7 +31,7 @@ Guide complet pour installer, configurer et utiliser le système de surveillance
 
 ```bash
 # Naviguez vers le répertoire du projet
-cd Morpheus
+cd Aerium
 ```
 
 ### Étape 2 : Configurer l'Environnement Python (Recommandé)

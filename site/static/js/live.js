@@ -96,8 +96,8 @@ function showAlertNotification(message, level = "warning") {
   setTimeout(() => notification.remove(), 4000);
   
   // Desktop notification if available
-  if (Notification.permission === "granted") {
-    new Notification("Morpheus CO₂ Alert", {
+    if (Notification.permission === "granted") {
+    new Notification("Aerium CO₂ Alert", {
       body: message,
       icon: level === "critical" ? "🔴" : "🟡",
     });

@@ -1,6 +1,6 @@
 # Guide de Dépannage
 
-Solutions aux problèmes et questions courants avec le système de surveillance CO₂ Morpheus.
+Solutions aux problèmes et questions courants avec le système de surveillance CO₂ Aerium.
 
 ## 📋 Table des Matières
 
@@ -73,7 +73,7 @@ cd site
 python -c \"from database import init_db; init_db()\"
 
 # Vérifier
-ls -la data/  # Devrait voir morpheus.db ou aerium.sqlite
+ls -la data/  # Devrait voir aerium.db ou aerium.sqlite
 ```
 
 ### Problèmes de Version Python
@@ -211,13 +211,13 @@ EOF
 cd site/data
 
 # Sauvegarder la base de données actuelle
-cp morpheus.db morpheus.db.corrupt
+cp aerium.db aerium.db.corrupt
 
 # Essayer de récupérer
-sqlite3 morpheus.db.corrupt \".dump\" | sqlite3 morpheus.db
+sqlite3 aerium.db.corrupt ".dump" | sqlite3 aerium.db
 
 # Si cela échoue, restaurer depuis la sauvegarde
-cp backups/morpheus.db.backup morpheus.db
+cp backups/aerium.db.backup aerium.db
 ```
 
 ### Requêtes Lentes
@@ -584,14 +584,14 @@ import flask
 import sqlite3
 import os
 
-print(\"=== Infos Diagnostic Morpheus ===\")
+print(\"=== Infos Diagnostic Aerium ===\")
 print(f\"Version Python : {sys.version}\")
 print(f\"Version Flask : {flask.__version__}\")
 print(f\"Répertoire actuel : {os.getcwd()}\")
-print(f\"Base de données existe : {os.path.exists('data/morpheus.db')}\")
+print(f\"Base de données existe : {os.path.exists('data/aerium.db')}\")
 
 try:
-    db = sqlite3.connect('data/morpheus.db')
+    db = sqlite3.connect('data/aerium.db')
     cursor = db.execute(\"SELECT COUNT(*) FROM users\")
     print(f\"Nombre d'utilisateurs : {cursor.fetchone()[0]}\")
     db.close()

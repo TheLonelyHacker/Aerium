@@ -1,4 +1,4 @@
-# Morpheus Kivy Test App - File Manifest
+# Aerium Kivy Test App - File Manifest
 
 Created: January 6, 2026  
 Total Files: 11  
@@ -85,7 +85,7 @@ Total Code: 3 files
    - APIManager class
    - DashboardScreen class
    - SensorsDetailScreen class
-   - MorpheusKivyApp class
+   - AeriumKivyApp class
    - Includes detailed comments
    - **Status:** Production code
 

@@ -1,4 +1,4 @@
-# Morpheus Kivy App - Usage Examples & Scenarios
+# Aerium Kivy App - Usage Examples & Scenarios
 
 ## Scenario 1: Daily Monitoring
 
@@ -131,7 +131,7 @@ Clock.schedule_interval(self.auto_refresh, 60)
 
 **Example 3: Change API Host**
 
-In `MorpheusKivyApp.__init__()`:
+In `AeriumKivyApp.__init__()`:
 ```python
 self.api_manager = APIManager(
     base_url="http://192.168.1.100:5000"  # Your custom host
@@ -315,7 +315,7 @@ python -u kivy_app.py
 |--------|------|----------|
 | Colors | kivy_app.py | `build()` method |
 | Refresh rate | kivy_app.py | `DashboardScreen` class |
-| API host | kivy_app.py | `MorpheusKivyApp.__init__()` |
+| API host | kivy_app.py | `AeriumKivyApp.__init__()` |
 | API timeout | kivy_app.py | `APIManager.__init__()` |
 | Screen layout | kivy_app.py | Screen classes |
 

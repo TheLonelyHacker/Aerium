@@ -5,8 +5,8 @@ Test if Flask app starts with advanced features
 
 import sys
 import os
-sys.path.insert(0, 'C:/Users/Zylow/Documents/NSI/PROJECT/Morpheus/site')
-os.chdir('C:/Users/Zylow/Documents/NSI/PROJECT/Morpheus/site')
+sys.path.insert(0, 'C:/Users/Zylow/Documents/NSI/PROJECT/Aerium/site')
+os.chdir('C:/Users/Zylow/Documents/NSI/PROJECT/Aerium/site')
 
 try:
     print("📦 Importing Flask app...")

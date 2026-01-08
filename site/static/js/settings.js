@@ -501,7 +501,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `morpheus-backup-${new Date().toISOString().split('T')[0]}.db`;
+        a.download = `aerium-backup-${new Date().toISOString().split('T')[0]}.db`;
         a.click();
         window.URL.revokeObjectURL(url);
         

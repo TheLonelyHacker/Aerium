@@ -1,5 +1,5 @@
 """
-Unit and Integration Tests for Morpheus CO₂ Webapp
+Unit and Integration Tests for Aerium CO₂ Webapp
 Tests authentication, API endpoints, database operations, and WebSocket events
 """
 

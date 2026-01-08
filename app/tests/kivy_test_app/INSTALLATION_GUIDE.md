@@ -13,12 +13,12 @@ Before installing, verify you have:
 
 **Windows (PowerShell/CMD):**
 ```bash
-cd C:\Users\01\Documents\Morpheus\app\tests\kivy_test_app
+cd C:\Users\01\Documents\Aerium\app\tests\kivy_test_app
 ```
 
 **Linux/Mac:**
 ```bash
-cd ~/Documents/Morpheus/app/tests/kivy_test_app
+cd ~/Documents/Aerium/app/tests/kivy_test_app
 ```
 
 ### 2. Install Python Dependencies
@@ -71,7 +71,7 @@ python -m kivy.app kivy_app
 
 After launching, verify:
 
-- [ ] Window opens with "Morpheus - Live Data Monitor" title
+- [ ] Window opens with "Aerium - Live Data Monitor" title
 - [ ] Dark theme is applied
 - [ ] "Loading..." text appears initially
 - [ ] After 2-3 seconds, data loads

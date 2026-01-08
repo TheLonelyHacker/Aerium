@@ -90,7 +90,7 @@ app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', True)
 app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', '')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', '')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'noreply@morpheus-co2.local')
+    app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'noreply@aerium-co2.local')
 
 socketio = SocketIO(
     app,
@@ -161,18 +161,18 @@ def send_verification_email(email, username, token):
         mail = Mail(app)
         
         verify_url = url_for('verify_email', token=token, _external=True)
-        subject = "Verify your Morpheus CO₂ Account"
+        subject = "Verify your Aerium CO₂ Account"
         
         html_body = f"""
         <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
                     <div style="background: linear-gradient(135deg, #3dd98f 0%, #4db8ff 100%); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 20px;">
-                        <h1 style="margin: 0;">🌍 Morpheus CO₂ Monitor</h1>
+                        <h1 style="margin: 0;">🌍 Aerium CO₂ Monitor</h1>
                     </div>
                     
                     <h2 style="color: #3dd98f;">Welcome, {username}!</h2>
-                    <p>Thank you for registering with Morpheus. Please verify your email address to complete your account setup.</p>
+                    <p>Thank you for registering with Aerium. Please verify your email address to complete your account setup.</p>
                     
                     <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
                         <p style="margin-bottom: 15px;">Click the button below to verify your email:</p>
@@ -204,14 +204,14 @@ def send_password_reset_email(email, username, token):
         mail = Mail(app)
         
         reset_url = url_for('reset_password_page', token=token, _external=True)
-        subject = "Reset your Morpheus CO₂ Password"
+        subject = "Reset your Aerium CO₂ Password"
         
         html_body = f"""
         <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
                     <div style="background: linear-gradient(135deg, #3dd98f 0%, #4db8ff 100%); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 20px;">
-                        <h1 style="margin: 0;">🌍 Morpheus CO₂ Monitor</h1>
+                        <h1 style="margin: 0;">🌍 Aerium CO₂ Monitor</h1>
                     </div>
                     
                     <h2 style="color: #3dd98f;">Password Reset Request</h2>
@@ -366,8 +366,8 @@ def health_feature():
 def manifest():
     """PWA Manifest for installable app"""
     return jsonify({
-        'name': 'Morpheus CO₂ Monitor',
-        'short_name': 'Morpheus',
+    'name': 'Aerium CO₂ Monitor',
+    'short_name': 'Aerium',
         'description': 'Surveillance professionnelle du CO₂ avec graphiques avancés',
         'start_url': '/',
         'scope': '/',
@@ -409,7 +409,7 @@ def manifest():
 def service_worker():
     """Service Worker for offline support and caching"""
     response = make_response("""
-const CACHE_NAME = 'morpheus-v1';
+const CACHE_NAME = 'aerium-v1';
 const STATIC_ASSETS = [
   '/',
   '/static/css/style.css',
@@ -2215,7 +2215,7 @@ def api_backup_database():
         log_audit(user_id, "BACKUP", f"Database backed up to {backup_path}")
         
         # Return the backup file
-        return send_file(backup_path, as_attachment=True, download_name=f"morpheus-backup-{timestamp}.sqlite")
+        return send_file(backup_path, as_attachment=True, download_name=f"aerium-backup-{timestamp}.sqlite")
     except Exception as e:
         log_audit(user_id, "ERROR", f"Backup failed: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -2508,7 +2508,7 @@ broadcast_running = False
 def handle_connect():
     """Handle client connection to WebSocket"""
     print(f"Client connected")
-    emit('status', {'data': 'Connected to Morpheus CO₂ Monitor'})
+    emit('status', {'data': 'Connected to Aerium CO₂ Monitor'})
     
     # Send current settings to client
     settings = load_settings()

@@ -3,7 +3,7 @@
 ## Final Organized Structure
 
 ```
-Morpheus/
+Aerium/
 │
 ├── 📁 site/                          # Flask Application (Core)
 │   ├── app.py                        # Main Flask app

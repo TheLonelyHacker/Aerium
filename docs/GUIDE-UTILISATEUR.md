@@ -1,6 +1,6 @@
 # Guide Utilisateur
 
-Guide complet pour utiliser toutes les fonctionnalités du système de surveillance CO₂ Morpheus.
+Guide complet pour utiliser toutes les fonctionnalités du système de surveillance CO₂ Aerium.
 
 ## 📋 Table des Matières
 

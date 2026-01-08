@@ -3,7 +3,7 @@
                      ADVANCED FEATURES MODULE
 ================================================================================
 Analytics & Insights, Collaboration & Sharing, Performance & Optimization,
-and Data Visualization enhancements for Morpheus CO₂ Monitor
+and Data Visualization enhancements for Aerium CO₂ Monitor
 
 Author: Development Team
 Version: 2.0
@@ -517,7 +517,7 @@ class PerformanceOptimizer:
             'cache_type': cache_type,
             'enabled': True,
             'ttl_seconds': ttl_seconds,
-            'cache_key_pattern': f'morpheus:{cache_type}:*',
+            'cache_key_pattern': f'aerium:{cache_type}:*',
             'invalidation_events': [
                 'new_reading_received',
                 'user_settings_changed',

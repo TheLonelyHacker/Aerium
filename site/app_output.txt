@@ -15,7 +15,7 @@ This is not recommended for production use. See: https://flask-limiter.readthedo
   warnings.warn(
 Γ£à Advanced features registered successfully
 ==================================================
-Current directory: C:\Users\Zylow\Documents\NSI\PROJECT\Morpheus\site
+Current directory: C:\Users\Zylow\Documents\NSI\PROJECT\Aerium\site
 Template folder exists: True
 Files in templates/: ['admin-tools.html', 'admin.html', 'advanced-features.html', 'analytics-feature.html', 'analytics.html', 'base.html', 'change_password.html', 'collaboration-feature.html', 'DASHBOARD-WIDGET.html', 'dashboard.html', 'email_verified.html', 'error.html', 'features-hub.html', 'forgot_password.html', 'health-feature.html', 'index.html', 'live.html', 'login.html', 'onboarding.html', 'performance-feature.html', 'profile.html', 'register.html', 'report_daily.html', 'reset_password.html', 'settings.html', 'simulator.html', 'visualization.html', 'visualizations-feature.html']
 ==================================================

@@ -1,4 +1,4 @@
-# Morpheus Kivy App - WebSocket + Simulation Edition
+# Aerium Kivy App - WebSocket + Simulation Edition
 
 ## What's New
 

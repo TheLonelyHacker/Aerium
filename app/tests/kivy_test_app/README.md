@@ -1,6 +1,6 @@
-# Morpheus Kivy Test App
+# Aerium Kivy Test App
 
-A lightweight Kivy application that mirrors the functionality of the Morpheus Flask web application. This app pulls real-time CO2 readings, sensor data, and analytics from the webapp API.
+A lightweight Kivy application that mirrors the functionality of the Aerium Flask web application. This app pulls real-time CO2 readings, sensor data, and analytics from the webapp API.
 
 ## Features
 
@@ -14,7 +14,7 @@ A lightweight Kivy application that mirrors the functionality of the Morpheus Fl
 ## Prerequisites
 
 - Python 3.8+
-- The Morpheus Flask webapp running on `http://localhost:5000`
+- The Aerium Flask webapp running on `http://localhost:5000`
 
 ## Installation
 
@@ -83,7 +83,7 @@ self.api_manager = APIManager(base_url="http://your-host:5000")
 - **APIManager**: Handles all HTTP requests to the Flask backend
 - **DashboardScreen**: Main screen showing real-time data and summaries
 - **SensorsDetailScreen**: Detailed view of all sensors
-- **MorpheusKivyApp**: Main application class managing the UI
+- **AeriumKivyApp**: Main application class managing the UI
 
 ## Notes
 

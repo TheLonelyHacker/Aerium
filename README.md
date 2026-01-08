@@ -1,4 +1,4 @@
-# Morpheus - Système de Surveillance de la Qualité de l'Air CO₂
+# Aerium - Système de Surveillance de la Qualité de l'Air CO₂
 
 <div align="center">
 
@@ -17,9 +17,9 @@
 
 ## 📖 À Propos
 
-Morpheus est une application web complète de surveillance de la qualité de l'air construite avec Flask et SocketIO. Elle permet de suivre en temps réel les niveaux de CO₂ dans vos espaces de travail, bureaux, écoles ou maisons, avec des analyses avancées et des alertes intelligentes.
+Aerium est une application web complète de surveillance de la qualité de l'air construite avec Flask et SocketIO. Elle permet de suivre en temps réel les niveaux de CO₂ dans vos espaces de travail, bureaux, écoles ou maisons, avec des analyses avancées et des alertes intelligentes.
 
-### 🎯 Pourquoi Morpheus ?
+### 🎯 Pourquoi Aerium ?
 
 - **🏢 Espaces de Travail** : Surveillez la qualité de l'air dans vos bureaux pour améliorer la productivité
 - **🏫 Établissements Scolaires** : Assurez un environnement d'apprentissage optimal
@@ -37,32 +37,49 @@ Morpheus est une application web complète de surveillance de la qualité de l'a
 - **Tableau de Bord Admin**: Surveillance de la santé du système, gestion des utilisateurs et journaux d'audit
 - **Optimisation des Performances**: Mise en cache, pagination et limitation de débit pour la scalabilité
 
-## 🚀 Démarrage Rapide
+## 🚀 Quick Start (Démarrage rapide)
 
 ### Prérequis
 
 - Python 3.8+
-- Gestionnaire de paquets pip
 
-### Installation
+### Installation et exécution (cross-platform)
 
-1. Clonez le dépôt :
-```bash
-cd Morpheus
+1) Créez et activez un environnement virtuel (Windows/macOS/Linux):
+
+```powershell
+python -m venv .venv
+.\\.venv\\Scripts\\Activate.ps1   # PowerShell (Windows)
+# ou .\\.venv\\Scripts\\activate    # cmd.exe (Windows)
 ```
 
-2. Installez les dépendances :
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate          # macOS / Linux
 ```
 
-3. Lancez l'application :
+2) Installez les dépendances:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+3) Initialisez la base de données si nécessaire (exemple) :
+
+```bash
+mkdir -p data
+python site/app.py --init-db
+```
+
+4) Lancez l'application :
+
 ```bash
 cd site
 python app.py
+# ou avec flask: set FLASK_APP=app.py && flask run
 ```
 
-4. Ouvrez votre navigateur à : `http://localhost:5000`
+5) Ouvrez votre navigateur à : `http://localhost:5000`
 
 ### Premiers Pas
 
@@ -85,7 +102,7 @@ Une documentation complète est disponible dans le dossier [`docs/`](docs/) :
 ## 🏗️ Structure du Projet
 
 ```
-Morpheus/
+Aerium/
 ├── site/                  # Application principale
 │   ├── app.py            # Application Flask
 │   ├── database.py       # Opérations de base de données
@@ -112,7 +129,7 @@ HOST = '0.0.0.0'
 PORT = 5000
 
 # Base de données
-DATABASE = 'data/morpheus.db'
+DATABASE = 'data/aerium.db'
 
 # Fonctionnalités
 ENABLE_CACHING = True
@@ -121,17 +138,14 @@ CACHE_TIMEOUT = 600  # secondes
 
 ## 🧪 Tests
 
-Exécutez la suite de tests :
+Exécutez la suite de tests (recommandé `pytest` lorsque disponible) :
 
 ```bash
-# Tests API
+# Exécuter l'ensemble des tests
+pytest -q
+
+# ou lancer des tests individuels
 python test_api_endpoints.py
-
-# Tests capteurs
-python test_sensor_api.py
-
-# Fonctionnalités avancées
-python test_advanced_endpoints.py
 ```
 
 ## 🤝 Contribuer
@@ -142,7 +156,7 @@ python test_advanced_endpoints.py
 4. Poussez vers la branche : `git push origin feature/fonctionnalite-incroyable`
 5. Ouvrez une Pull Request
 
-Consultez le [Guide Développeur](docs/DEVELOPER-GUIDE.md) pour des directives de contribution détaillées.
+Consultez le [Guide Développeur](docs/GUIDE-DEVELOPPEUR.md) pour des directives de contribution détaillées.
 
 ## 📄 Licence
 
@@ -167,7 +181,7 @@ Ce projet est sous licence MIT.
 <details>
 <summary><b>Quels capteurs CO₂ sont compatibles ?</b></summary>
 
-Morpheus supporte :
+Aerium supporte :
 - Capteurs USB série (MH-Z19, SCD30, etc.)
 - Capteurs réseau (HTTP/MQTT)
 - Intégration via API REST
@@ -177,9 +191,9 @@ Consultez la [documentation des capteurs](docs/GUIDE-UTILISATEUR.md#gestion-des-
 </details>
 
 <details>
-<summary><b>Puis-je utiliser Morpheus sur un Raspberry Pi ?</b></summary>
+<summary><b>Puis-je utiliser Aerium sur un Raspberry Pi ?</b></summary>
 
-Oui ! Morpheus fonctionne parfaitement sur Raspberry Pi 3/4 avec Python 3.8+. Recommandé pour :
+Oui ! Aerium fonctionne parfaitement sur Raspberry Pi 3/4 avec Python 3.8+. Recommandé pour :
 - Installations permanentes
 - Déploiement multi-sites
 - Intégration IoT
@@ -221,35 +235,6 @@ Oui, toutes les données sont stockées dans une base SQLite locale. Aucune donn
 
 ---
 
-## 🎯 Feuille de Route
-
-### ✅ Version 2.0 (Actuelle)
-- Support multi-capteurs
-- Analyses ML avancées
-- API REST et WebSocket
-- Optimisations de performance
-
-### 🚧 Prochaines Versions
-
-**v2.1** (Q1 2026)
-- [ ] Application mobile (iOS/Android)
-- [ ] Support multi-sites
-- [ ] Alertes SMS
-
-**v2.2** (Q2 2026)
-- [ ] Dashboard personnalisable
-- [ ] Intégration Home Assistant
-- [ ] Export automatique cloud
-
-**v3.0** (Q3 2026)
-- [ ] Prédictions ML temps réel
-- [ ] Clustering multi-bâtiments
-- [ ] API publique étendue
-
-[Voir la feuille de route complète](docs/ROADMAP.md)
-
----
-
 ## 🏆 Contributeurs
 
 Merci à tous ceux qui ont contribué au projet !
@@ -280,7 +265,7 @@ Ce projet est sous licence MIT - voir le fichier [LICENSE](LICENSE) pour plus de
 
 Made with ❤️ pour un air plus sain
 
-[⬆ Retour en haut](#morpheus---système-de-surveillance-de-la-qualité-de-lair-co₂)
+[⬆ Retour en haut](#aerium---système-de-surveillance-de-la-qualité-de-lair-co₂)
 
 </div>
 **Dernière Mise à Jour** : Janvier 2026

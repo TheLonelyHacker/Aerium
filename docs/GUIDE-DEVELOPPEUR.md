@@ -1,6 +1,6 @@
 # Guide Développeur
 
-Guide pour les développeurs contribuant ou étendant le système de surveillance CO₂ Morpheus.
+Guide pour les développeurs contribuant ou étendant le système de surveillance CO₂ Aerium.
 
 ## 📋 Table des Matières
 
@@ -30,7 +30,7 @@ Guide pour les développeurs contribuant ou étendant le système de surveillanc
 ```bash
 # Cloner le dépôt
 git clone <url-dépôt>
-cd Morpheus
+cd Aerium
 
 # Créer l'environnement virtuel
 python -m venv venv
@@ -97,7 +97,7 @@ Morpheus/
 │   ├── co2_reader.py         # Lecture capteur
 │   └── sensors/              # Code spécifique capteur
 ├── data/                      # Base de données et sauvegardes
-│   ├── morpheus.db           # Base de données SQLite
+│   ├── aerium.db           # Base de données SQLite
 │   └── backups/              # Sauvegardes automatiques
 ├── docs/                      # Documentation
 ├── tests/                     # Suite de tests
@@ -212,7 +212,7 @@ from flask import g
 def get_db():
     \"\"\"Obtenir la connexion base de données\"\"\"
     if 'db' not in g:
-        g.db = sqlite3.connect('data/morpheus.db')
+        g.db = sqlite3.connect('data/aerium.db')
         g.db.row_factory = sqlite3.Row
     return g.db
 
@@ -578,8 +578,8 @@ CMD [\"python\", \"app.py\"]
 
 **Construire et Lancer** :
 ```bash
-docker build -t morpheus .
-docker run -p 5000:5000 -v $(pwd)/data:/app/data morpheus
+docker build -t aerium .
+docker run -p 5000:5000 -v $(pwd)/data:/app/data aerium
 ```
 
 ### Proxy Inverse Nginx
@@ -587,7 +587,7 @@ docker run -p 5000:5000 -v $(pwd)/data:/app/data morpheus
 ```nginx
 server {
     listen 80;
-    server_name morpheus.exemple.com;
+    server_name aerium.exemple.com;
 
     location / {
         proxy_pass http://localhost:5000;

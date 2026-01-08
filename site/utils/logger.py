@@ -9,4 +9,4 @@ def configure_logging():
         format='%(asctime)s %(levelname)s [%(name)s] %(message)s',
     )
     logging.getLogger('werkzeug').setLevel(logging.WARNING)
-    return logging.getLogger('morpheus')
+    return logging.getLogger('aerium')

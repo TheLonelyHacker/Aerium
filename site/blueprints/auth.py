@@ -18,7 +18,7 @@ def send_verification_email(email, username, token):
         from flask_mail import Mail, Message
         mail = Mail(current_app)
         verify_url = url_for('auth.verify_email', token=token, _external=True)
-        subject = "Verify your Morpheus CO₂ Account"
+        subject = "Verify your Aerium CO₂ Account"
         html_body = f"""
         <html>
             <body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\">
@@ -27,7 +27,7 @@ def send_verification_email(email, username, token):
                 </div>
                 <div style=\"padding: 20px;\">
                     <p>Bonjour {username},</p>
-                    <p>Merci de vous être inscrit à Morpheus CO₂ Monitor. Veuillez confirmer votre adresse email en cliquant sur le lien ci-dessous:</p>
+                    <p>Merci de vous être inscrit à Aerium CO₂ Monitor. Veuillez confirmer votre adresse email en cliquant sur le lien ci-dessous:</p>
                     <p><a href=\"{verify_url}\" style=\"background-color: #3dd98f; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px;\">Vérifier mon email</a></p>
                     <p>Ce lien expirera dans 24 heures.</p>
                 </div>
@@ -49,7 +49,7 @@ def send_password_reset_email(email, username, token):
         from flask_mail import Mail, Message
         mail = Mail(current_app)
         reset_url = url_for('auth.reset_password_page', token=token, _external=True)
-        subject = "Reset your Morpheus CO₂ password"
+        subject = "Reset your Aerium CO₂ password"
         html_body = f"""
         <html>
             <body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\">

@@ -1,5 +1,5 @@
 """
-Utility modules for Morpheus CO2 Monitor
+Utility modules for Aerium CO2 Monitor
 """
 
 __all__ = [

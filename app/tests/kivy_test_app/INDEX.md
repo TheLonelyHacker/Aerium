@@ -1,6 +1,6 @@
-# Morpheus Kivy Test App - Documentation Index
+# Aerium Kivy Test App - Documentation Index
 
-Welcome to the Morpheus Kivy Test Application! This folder contains a complete Kivy app that mirrors your Flask webapp's data display.
+Welcome to the Aerium Kivy Test Application! This folder contains a complete Kivy app that mirrors your Flask webapp's data display.
 
 ## 📋 Quick Navigation
 

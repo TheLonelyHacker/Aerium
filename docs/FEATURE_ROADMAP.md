@@ -1,4 +1,4 @@
-# MORPHEUS - What's Been Added vs. What Can Still Be Done
+# AERIUM - What's Been Added vs. What Can Still Be Done
 
 ## 📋 QUICK REFERENCE SUMMARY
 

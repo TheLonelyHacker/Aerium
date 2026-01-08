@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Collaboration Avancée - Morpheus{% endblock %}
+{% block title %}Collaboration Avancée - Aerium{% endblock %}
 
 {% block content %}
 <style>

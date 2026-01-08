@@ -49,7 +49,7 @@ MODE = "SIMULATION"                   # Line 9
 
 ```
 ┌─────────────────────────────┐
-│  Morpheus CO₂ Monitor       │
+│  Aerium CO₂ Monitor       │
 │  (SIMULATION)               │
 ├─────────────────────────────┤
 │ ✅ Connected / 🎮 Simulation│

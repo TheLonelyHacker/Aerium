@@ -1,4 +1,4 @@
-# ✅ Morpheus Kivy Test App - Complete Setup
+# ✅ Aerium Kivy Test App - Complete Setup
 
 ## Summary
 
@@ -201,7 +201,7 @@ See USAGE_EXAMPLES.md for more customization ideas.
 ## 📋 What Happens When You Run It
 
 1. **Dependency Check** - Verifies KivyMD, Kivy, and requests are installed
-2. **App Launch** - Opens window with "Morpheus - Live Data Monitor"
+2. **App Launch** - Opens window with "Aerium - Live Data Monitor"
 3. **Initial Load** - Fetches latest data from Flask app
 4. **Display** - Shows dashboard with current readings
 5. **Auto-Update** - Refreshes data every 30 seconds

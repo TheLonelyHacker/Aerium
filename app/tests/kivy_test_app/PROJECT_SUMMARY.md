@@ -1,8 +1,8 @@
-# Morpheus Kivy Test App - Project Summary
+# Aerium Kivy Test App - Project Summary
 
 ## Overview
 
-Created a complete Kivy test application that mirrors the functionality of your Morpheus Flask web application. The Kivy app pulls data directly from the webapp's REST API and displays it in a modern Material Design interface.
+Created a complete Kivy test application that mirrors the functionality of your Aerium Flask web application. The Kivy app pulls data directly from the webapp's REST API and displays it in a modern Material Design interface.
 
 ## Project Structure
 
@@ -105,7 +105,7 @@ Simply double-click `run.bat` to install dependencies and launch automatically.
    - Full sensor list
    - Navigation back to dashboard
 
-4. **MorpheusKivyApp Class**
+4. **AeriumKivyApp Class**
    - Main application class
    - Screen manager
    - Theme configuration

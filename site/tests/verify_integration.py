@@ -29,7 +29,7 @@ print("=" * 70)
 print("ADVANCED FEATURES INTEGRATION VERIFICATION")
 print("=" * 70)
 
-base = Path("C:/Users/Zylow/Documents/NSI/PROJECT/Morpheus")
+base = Path("C:/Users/Zylow/Documents/NSI/PROJECT/Aerium")
 os.chdir(base)
 
 print("\n📦 CORE FILES CREATED:")

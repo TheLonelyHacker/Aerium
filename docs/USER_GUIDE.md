@@ -1,7 +1,7 @@
 # 🎯 USER GUIDE - HOW TO USE EACH PAGE
 
 ## Overview
-All 6 pages in the Morpheus webapp are now fully functional with simulated data. Here's how to use each one.
+All 6 pages in the Aerium webapp are now fully functional with simulated data. Here's how to use each one.
 
 ---
 

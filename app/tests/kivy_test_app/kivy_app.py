@@ -1,5 +1,5 @@
 """
-Morpheus Kivy Test App - WebSocket Edition
+Aerium Kivy Test App - WebSocket Edition
 ===========================================
 Real-time CO2 monitoring with WebSocket connection.
 Supports both LIVE and SIMULATION modes.
@@ -23,7 +23,7 @@ import requests
 
 # ============================================================================
 # CONFIGURATION
-# ============================================================================
+        Aerium Kivy Test App - WebSocket Edition
 
 SERVER_URL = "http://localhost:5000"  # Flask SocketIO server
 MODE = "FLASK_SIM"  # "LIVE", "SIMULATION", or "FLASK_SIM" (polls Flask /api/simulator/latest)
@@ -50,7 +50,6 @@ class WebSocketManager:
             reconnection=True,
             reconnection_delay=1,
             reconnection_delay_max=5,
-            reconnection_attempts=10,
             logger=False,
             engineio_logger=False
         )
@@ -98,7 +97,7 @@ class WebSocketManager:
         print(f"❌ Connection error: {error}")
         if self.on_data_callback:
             self.on_data_callback({
-                'status': 'error',
+    print("🌬️ Aerium CO₂ Monitor - WebSocket + Simulation")
                 'message': f'❌ Error: {str(error)}'
             })
     
@@ -390,7 +389,7 @@ class CO2MonitorScreen(MDScreen):
         
         # Top bar
         topbar = MDTopAppBar(
-            MDTopAppBarTitle(text=f"Morpheus CO₂ Monitor ({self.mode})", halign="center"),
+            MDTopAppBarTitle(text=f"Aerium CO₂ Monitor ({self.mode})", halign="center"),
             type="small",
             pos_hint={"top": 1},
         )
@@ -610,7 +609,7 @@ class CO2MonitorScreen(MDScreen):
 # MAIN APP
 # ============================================================================
 
-class MorpheusKivyApp(MDApp):
+class AeriumKivyApp(MDApp):
     """Main application"""
     
     def build(self):
@@ -632,10 +631,10 @@ class MorpheusKivyApp(MDApp):
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("🌬️ Morpheus CO₂ Monitor - WebSocket + Simulation")
+    print("🌬️ Aerium CO₂ Monitor - WebSocket + Simulation")
     print("=" * 60)
     print(f"Mode: {MODE}")
     print(f"Server: {SERVER_URL}")
     print("=" * 60)
     
-    MorpheusKivyApp().run()
+    AeriumKivyApp().run()

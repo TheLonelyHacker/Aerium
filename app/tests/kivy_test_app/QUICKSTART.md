@@ -1,4 +1,4 @@
-# Quick Start Guide - Morpheus Kivy Test App
+# Quick Start Guide - Aerium Kivy Test App
 
 ## What is this?
 
@@ -7,7 +7,7 @@ This is a mobile-like Kivy test application that mirrors the Flask web applicati
 ## Get Started in 3 Steps
 
 ### Step 1: Ensure Flask App is Running
-Make sure your Morpheus Flask webapp is running:
+Make sure your Aerium Flask webapp is running:
 ```bash
 # From the site folder
 python app.py
