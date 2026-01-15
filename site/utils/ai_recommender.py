@@ -27,6 +27,13 @@ class AIRecommender:
     
     def __init__(self):
         self.db = get_db()
+
+    def close(self):
+        if self.db:
+            try:
+                self.db.close()
+            finally:
+                self.db = None
     
     def get_recommendations(self, sensor_id: int, building_type: str = 'office', 
                            occupancy_count: int = 10) -> List[Dict]:

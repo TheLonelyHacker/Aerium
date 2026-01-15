@@ -16,8 +16,10 @@ from datetime import datetime, timedelta, UTC
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 import json
-from typing import Dict, List, Tuple, Optional
 import statistics
+from typing import Dict, List, Tuple, Optional
+
+from sklearn.ensemble import IsolationForest
 
 
 # ================================================================================
@@ -84,33 +86,28 @@ class AdvancedAnalytics:
             }
     
     @staticmethod
-    def detect_anomalies(readings: List[Dict], threshold_std: float = 2.0) -> Dict:
+    def detect_anomalies(readings: List[Dict], threshold_std: float = 2.0, method: str = "stddev") -> Dict:
         """
-        Detect anomalous readings using standard deviation
-        
-        Args:
-            readings: List of reading dicts with 'ppm'
-            threshold_std: Number of standard deviations for anomaly
-        
-        Returns:
-            Dict with anomalies list and statistics
+        Detect anomalous readings using the requested algorithm.
+        method: "stddev" (default) or "isolation_forest".
         """
         if len(readings) < 3:
             return {'anomalies': [], 'statistics': {}}
-        
+
+        method = (method or "stddev").lower()
+        if method == "isolation_forest":
+            return AdvancedAnalytics.detect_anomalies_isolation_forest(readings)
+
         try:
             ppm_values = [r.get('ppm', 0) for r in readings]
-            
-            # Calculate statistics
             mean_ppm = statistics.mean(ppm_values)
             stdev = statistics.stdev(ppm_values) if len(ppm_values) > 1 else 0
-            
-            # Find anomalies
+
             anomalies = []
             for i, reading in enumerate(readings):
                 ppm = reading.get('ppm', 0)
                 z_score = abs((ppm - mean_ppm) / stdev) if stdev > 0 else 0
-                
+
                 if z_score > threshold_std:
                     anomalies.append({
                         'index': i,
@@ -119,7 +116,7 @@ class AdvancedAnalytics:
                         'severity': 'high' if z_score > 3 else 'medium',
                         'timestamp': reading.get('timestamp', '')
                     })
-            
+
             return {
                 'anomalies': anomalies,
                 'statistics': {
@@ -132,6 +129,45 @@ class AdvancedAnalytics:
             }
         except Exception as e:
             return {'error': str(e), 'anomalies': []}
+
+    @staticmethod
+    def detect_anomalies_isolation_forest(readings: List[Dict], contamination: float = 0.05) -> Dict:
+        """Detect anomalies using Isolation Forest for non-linear patterns."""
+        if len(readings) < 5:
+            return {'anomalies': [], 'statistics': {}, 'anomaly_count': 0}
+
+        try:
+            ppm_values = np.array([[r.get('ppm', 0)] for r in readings])
+            model = IsolationForest(contamination=min(max(contamination, 0.001), 0.2), random_state=42)
+            scores = model.decision_function(ppm_values)
+            labels = model.predict(ppm_values)
+
+            anomalies = []
+            for idx, (reading, label, score) in enumerate(zip(readings, labels, scores)):
+                if label == -1:
+                    ppm = reading.get('ppm', 0)
+                    anomalies.append({
+                        'index': idx,
+                        'ppm': ppm,
+                        'score': float(score),
+                        'severity': 'high' if ppm > np.percentile(ppm_values, 90) else 'medium',
+                        'timestamp': reading.get('timestamp', ''),
+                        'method': 'isolation_forest'
+                    })
+
+            return {
+                'anomalies': anomalies,
+                'statistics': {
+                    'median': float(np.median(ppm_values)),
+                    'iqr': float(np.percentile(ppm_values, 75) - np.percentile(ppm_values, 25)),
+                    'min': float(np.min(ppm_values)),
+                    'max': float(np.max(ppm_values)),
+                },
+                'anomaly_count': len(anomalies),
+                'model': 'IsolationForest',
+            }
+        except Exception as exc:  # fallback to stddev on failure
+            return AdvancedAnalytics.detect_anomalies(readings, threshold_std=2.0, method="stddev") | {'error': str(exc)}
     
     @staticmethod
     def generate_insights(readings: List[Dict], user_id: str) -> Dict:

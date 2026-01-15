@@ -11,6 +11,7 @@ These routes are registered when register_advanced_features() is called
 from flask import jsonify, request, session, render_template
 from advanced_features import (AdvancedAnalytics, CollaborationManager,
                                PerformanceOptimizer, VisualizationEngine)
+from utils.ai_recommender import AIRecommender
 from database import get_db, is_admin
 import json
 from datetime import datetime, timedelta
@@ -134,92 +135,56 @@ def setup_analytics_routes(app, limiter):
     @app.route("/api/analytics/anomalies")
     @limiter.limit("20 per hour")
     def detect_anomalies():
-        """Detect anomalies in readings"""
-        if not is_logged_in():
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-        
-        try:
-            days = request.args.get('days', 7, type=int)
-            
-            db = get_db()
-            
-            # Get readings from the last N days
-            readings = db.execute(f"""
-                SELECT timestamp, ppm
-                FROM co2_readings
-                WHERE timestamp >= datetime('now', '-{days} days')
-                ORDER BY timestamp DESC
-            """).fetchall()
-            
-            db.close()
-            
-            if not readings:
-                return jsonify({
-                    'success': True,
-                    'anomalies': []
-                })
-            
-            readings_list = [dict(r) for r in readings]
-            ppm_values = [r['ppm'] for r in readings_list]
-            
-            if len(ppm_values) < 3:
-                return jsonify({
-                    'success': True,
-                    'anomalies': []
-                })
-            
-            # Calculate statistics
-            import statistics
-            mean_ppm = statistics.mean(ppm_values)
+        @app.route("/api/analytics/anomalies")
+        @limiter.limit("20 per hour")
+        def detect_anomalies():
+            """Detect anomalies in readings using Isolation Forest by default."""
+            if not is_logged_in():
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
             try:
-                stdev_ppm = statistics.stdev(ppm_values)
-            except:
-                stdev_ppm = 0
-            
-            # Find anomalies (values > 2 standard deviations from mean)
-            anomalies = []
-            threshold_high = mean_ppm + (2 * stdev_ppm) if stdev_ppm > 0 else 1200
-            threshold_low = mean_ppm - (2 * stdev_ppm) if stdev_ppm > 0 else 400
-            
-            for reading in readings_list[:100]:  # Check last 100 readings
-                ppm = reading['ppm']
-                
-                if ppm > threshold_high:
-                    score = min(1.0, abs(ppm - mean_ppm) / (max(stdev_ppm, 1)))
-                    anomalies.append({
-                        'time': reading['timestamp'],
-                        'value': round(ppm, 1),
-                        'severity': 'high' if ppm > 1200 else 'medium',
-                        'score': min(0.99, score),
-                        'description': f'CO₂ level {ppm} ppm is unusually high (mean: {mean_ppm:.0f} ppm)'
-                    })
-                elif ppm < threshold_low:
-                    score = min(1.0, abs(mean_ppm - ppm) / (max(stdev_ppm, 1)))
-                    anomalies.append({
-                        'time': reading['timestamp'],
-                        'value': round(ppm, 1),
-                        'severity': 'low',
-                        'score': min(0.99, score),
-                        'description': f'CO₂ level {ppm} ppm is unusually low (mean: {mean_ppm:.0f} ppm)'
-                    })
-            
-            # Sort by score and return top 10
-            anomalies.sort(key=lambda x: x['score'], reverse=True)
-            
-            return jsonify({
-                'success': True,
-                'anomalies': anomalies[:10],
-                'mean': round(mean_ppm, 1),
-                'stdev': round(stdev_ppm, 1) if stdev_ppm else 0
-            })
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return jsonify({'success': False, 'error': str(e)}), 500
-    
-    @app.route("/api/analytics/insights")
-    @limiter.limit("20 per hour")
-    def get_insights():
+                days = request.args.get('days', 7, type=int)
+                method = request.args.get('method', 'isolation_forest')
+
+                db = get_db()
+                readings = db.execute(
+                    """
+                    SELECT timestamp, ppm
+                    FROM co2_readings
+                    WHERE timestamp >= datetime('now', ?)
+                    ORDER BY timestamp DESC
+                    """,
+                    (f'-{days} days',),
+                ).fetchall()
+                db.close()
+
+                readings_list = [dict(r) for r in readings]
+                result = AdvancedAnalytics.detect_anomalies(readings_list, method=method)
+                return jsonify({'success': True, **result})
+            except Exception as e:
+                import traceback
+
+                traceback.print_exc()
+                return jsonify({'success': False, 'error': str(e)}), 500
+
+        @app.route("/api/recommendations/<int:sensor_id>")
+        @limiter.limit("20 per hour")
+        def recommendations(sensor_id: int):
+            """Expose AI recommendations for a given sensor."""
+            if not is_logged_in():
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+            building_type = request.args.get('building_type', 'office')
+            occupancy = request.args.get('occupancy', 10, type=int)
+
+            recommender = AIRecommender()
+            try:
+                recs = recommender.get_recommendations(sensor_id=sensor_id, building_type=building_type, occupancy_count=occupancy)
+                return jsonify({'success': True, 'recommendations': recs, 'count': len(recs)})
+            except Exception as exc:
+                return jsonify({'success': False, 'error': str(exc)}), 500
+            finally:
+                recommender.close()
         """Get AI-generated insights about air quality"""
         if not is_logged_in():
             return jsonify({'success': False, 'error': 'Unauthorized'}), 401
