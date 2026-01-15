@@ -10,69 +10,7 @@ from database import (
     log_login, get_login_history, get_user_settings, get_admin_stats, get_all_users,
 )
 from utils.auth_decorators import login_required
-from flask import current_app
-
-def send_verification_email(email, username, token):
-    """Send email verification link using Flask-Mail if configured"""
-    try:
-        from flask_mail import Mail, Message
-        mail = Mail(current_app)
-        verify_url = url_for('auth.verify_email', token=token, _external=True)
-        subject = "Verify your Aerium CO₂ Account"
-        html_body = f"""
-        <html>
-            <body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\">
-                <div style=\"background-color: #0b0d12; padding: 20px; color: white;\">
-                    <h2 style=\"margin: 0;\">Aerium CO₂ Monitor</h2>
-                </div>
-                <div style=\"padding: 20px;\">
-                    <p>Bonjour {username},</p>
-                    <p>Merci de vous être inscrit à Aerium CO₂ Monitor. Veuillez confirmer votre adresse email en cliquant sur le lien ci-dessous:</p>
-                    <p><a href=\"{verify_url}\" style=\"background-color: #3dd98f; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px;\">Vérifier mon email</a></p>
-                    <p>Ce lien expirera dans 24 heures.</p>
-                </div>
-                <div style=\"background-color: #f5f7fa; padding: 15px; font-size: 0.9em; color: #666;\">
-                    <p>Si vous n'avez pas créé de compte, ignorez cet email.</p>
-                </div>
-            </body>
-        </html>
-        """
-        msg = Message(subject=subject, recipients=[email], html=html_body)
-        mail.send(msg)
-        return True
-    except Exception:
-        return False
-
-def send_password_reset_email(email, username, token):
-    """Send password reset email using Flask-Mail if configured"""
-    try:
-        from flask_mail import Mail, Message
-        mail = Mail(current_app)
-        reset_url = url_for('auth.reset_password_page', token=token, _external=True)
-        subject = "Reset your Aerium CO₂ password"
-        html_body = f"""
-        <html>
-            <body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\">
-                <div style=\"background-color: #0b0d12; padding: 20px; color: white;\">
-                    <h2 style=\"margin: 0;\">Aerium CO₂ Monitor</h2>
-                </div>
-                <div style=\"padding: 20px;\">
-                    <p>Bonjour {username},</p>
-                    <p>Vous avez demandé une réinitialisation de votre mot de passe. Cliquez sur le lien ci-dessous pour procéder:</p>
-                    <p><a href=\"{reset_url}\" style=\"background-color: #4db8ff; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px;\">Réinitialiser mon mot de passe</a></p>
-                    <p>Ce lien expirera dans 1 heure.</p>
-                </div>
-                <div style=\"background-color: #f5f7fa; padding: 15px; font-size: 0.9em; color: #666;\">
-                    <p>Si vous n'avez pas demandé cette action, vous pouvez ignorer cet email.</p>
-                </div>
-            </body>
-        </html>
-        """
-        msg = Message(subject=subject, recipients=[email], html=html_body)
-        mail.send(msg)
-        return True
-    except Exception:
-        return False
+from utils.email_templates import send_verification_email, send_password_reset_email
 
 auth_bp = Blueprint('auth', __name__)
 

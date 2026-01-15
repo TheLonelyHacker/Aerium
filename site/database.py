@@ -1,4 +1,7 @@
+import os
 import sqlite3
+import threading
+from queue import Queue, Empty, Full
 from pathlib import Path
 
 # Database path - try main folder first, fallback to site folder
@@ -11,11 +14,52 @@ if MAIN_DB_PATH.exists():
 else:
     DB_PATH = SITE_DB_PATH
 
-def get_db():
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "5"))
+_db_pool: Queue = Queue(maxsize=DB_POOL_SIZE)
+_pool_lock = threading.Lock()
+
+
+class PooledConnection:
+    """SQLite connection wrapper that returns connections to the pool on close."""
+
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+
+    def __getattr__(self, item):
+        return getattr(self._conn, item)
+
+    def close(self):
+        if self._conn is None:
+            return
+
+        try:
+            self._conn.rollback()
+        except Exception:
+            pass
+
+        try:
+            _db_pool.put_nowait(self._conn)
+        except Full:
+            self._conn.close()
+        finally:
+            self._conn = None
+
+
+def _create_connection() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, detect_types=sqlite3.PARSE_DECLTYPES)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def get_db():
+    DB_PATH.parent.mkdir(exist_ok=True)
+    with _pool_lock:
+        try:
+            conn = _db_pool.get_nowait()
+        except Empty:
+            conn = _create_connection()
+    return PooledConnection(conn)
 
 def init_db():
     db = get_db()
@@ -1224,17 +1268,17 @@ def ban_user(user_id, admin_id, ip_address=None):
 # ================================================================================
 #                        ONBOARDING
 # ================================================================================
+MAX_ONBOARDING_STEP = int(os.getenv("MAX_ONBOARDING_STEP", "10"))
+ONBOARDING_DEFAULT_STEP = 0
 
 def init_onboarding(user_id):
     """Initialize onboarding for a new user"""
     db = get_db()
-    
     db.execute(
-        """INSERT INTO onboarding (user_id, step, tour_started)
-           VALUES (?, 0, 0)""",
-        (user_id,)
+        """INSERT OR IGNORE INTO onboarding (user_id, step, tour_started)
+           VALUES (?, ?, 0)""",
+        (user_id, ONBOARDING_DEFAULT_STEP),
     )
-    
     db.commit()
     db.close()
 
@@ -1258,52 +1302,83 @@ def get_onboarding_status(user_id):
 def update_onboarding_step(user_id, step):
     """Update onboarding progress"""
     db = get_db()
-    
+
+    current = db.execute(
+        "SELECT step FROM onboarding WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+
+    if not current:
+        init_onboarding(user_id)
+        current_step = ONBOARDING_DEFAULT_STEP
+    else:
+        current_step = current["step"]
+
+    if step < current_step:
+        db.close()
+        return False, current_step
+
+    normalized_step = min(current_step + 1, MAX_ONBOARDING_STEP, step)
+
     db.execute(
         "UPDATE onboarding SET step = ? WHERE user_id = ?",
-        (step, user_id)
+        (normalized_step, user_id),
     )
-    
     db.commit()
     db.close()
+    return True, normalized_step
 
 def mark_feature_as_seen(user_id, feature):
     """Record that user has seen a feature"""
     db = get_db()
-    
+
     onboarding = db.execute(
         "SELECT features_seen FROM onboarding WHERE user_id = ?",
-        (user_id,)
+        (user_id,),
     ).fetchone()
-    
-    if onboarding:
-        features = onboarding['features_seen'].split(',') if onboarding['features_seen'] else []
-        if feature not in features:
-            features.append(feature)
-            db.execute(
-                "UPDATE onboarding SET features_seen = ? WHERE user_id = ?",
-                (','.join(features), user_id)
-            )
-            db.commit()
-    
+
+    if onboarding is None:
+        init_onboarding(user_id)
+        features = []
+    else:
+        features = onboarding["features_seen"].split(",") if onboarding["features_seen"] else []
+
+    if feature not in features:
+        features.append(feature)
+        feature_value = ",".join([f for f in features if f])
+        db.execute(
+            "UPDATE onboarding SET features_seen = ? WHERE user_id = ?",
+            (feature_value, user_id),
+        )
+        db.commit()
+
     db.close()
 
 def complete_onboarding(user_id):
     """Mark onboarding as complete"""
     db = get_db()
-    
+    status = db.execute("SELECT step FROM onboarding WHERE user_id = ?", (user_id,)).fetchone()
+    if not status:
+        init_onboarding(user_id)
+        current_step = ONBOARDING_DEFAULT_STEP
+    else:
+        current_step = status["step"]
+
+    new_step = max(current_step, MAX_ONBOARDING_STEP)
     db.execute(
-        """UPDATE onboarding SET completed = 1, completed_at = CURRENT_TIMESTAMP 
+        """UPDATE onboarding SET completed = 1, completed_at = CURRENT_TIMESTAMP, step = ?
            WHERE user_id = ?""",
-        (user_id,)
+        (new_step, user_id),
     )
-    
     db.commit()
     db.close()
 
 def start_tour(user_id):
     """Mark tour as started"""
     db = get_db()
+    existing = db.execute("SELECT 1 FROM onboarding WHERE user_id = ?", (user_id,)).fetchone()
+    if not existing:
+        init_onboarding(user_id)
     
     db.execute(
         "UPDATE onboarding SET tour_started = 1 WHERE user_id = ?",
@@ -1316,6 +1391,9 @@ def start_tour(user_id):
 def complete_tour(user_id):
     """Mark tour as complete"""
     db = get_db()
+    existing = db.execute("SELECT 1 FROM onboarding WHERE user_id = ?", (user_id,)).fetchone()
+    if not existing:
+        init_onboarding(user_id)
     
     db.execute(
         "UPDATE onboarding SET tour_completed = 1 WHERE user_id = ?",
