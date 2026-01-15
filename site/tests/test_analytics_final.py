@@ -122,6 +122,9 @@ def test_with_session():
     except:
         pass
     
+    print("\n" + "=" * 60)
+    print("\nStep 3: Verify data quality...\n")
+
     print("\n" + "*" * 60)
     print("*  TEST COMPLETE")
     print("*" * 60 + "\n")

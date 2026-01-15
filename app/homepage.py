@@ -22,6 +22,7 @@ class MainApp(MDApp):
         self.theme_cls.primary_palette = "Blue"
 
         self.dataManager = DataManager(self.user_data_dir)
+        print( self.user_data_dir)
         self.total_alarms = {}
         screen = MDScreen()
 
