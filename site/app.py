@@ -25,6 +25,13 @@ from database import (get_db, init_db, get_user_by_username, create_user, get_us
                       get_active_sensors, update_sensor_availability, update_sensor_last_read,
                       log_sensor_reading, get_sensor_readings, get_sensor_latest_reading,
                       update_sensor_thresholds, get_sensor_thresholds, check_sensor_threshold_status)
+
+# Try to import APScheduler for automated cleanup tasks
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    SCHEDULER_AVAILABLE = True
+except ImportError:
+    SCHEDULER_AVAILABLE = False
 import json
 from flask import send_file
 try:
@@ -101,6 +108,34 @@ socketio = SocketIO(
 
 init_db()
 
+# ================================================================================
+#                    BACKGROUND SCHEDULER SETUP
+# ================================================================================
+
+if SCHEDULER_AVAILABLE:
+    scheduler = BackgroundScheduler()
+    
+    def scheduled_cleanup():
+        """Run cleanup tasks on a schedule"""
+        try:
+            retention_days = int(os.getenv('DATA_RETENTION_DAYS', '90'))
+            logger.info(f"Running scheduled cleanup: removing data older than {retention_days} days")
+            cleanup_old_data(retention_days)
+            cleanup_old_audit_logs(days_to_keep=365)  # Keep audit logs longer
+            cleanup_old_login_history(days_to_keep=30)
+            cleanup_expired_tokens()
+            cleanup_expired_reset_tokens()
+        except Exception as e:
+            logger.error(f"Cleanup task failed: {e}")
+    
+    # Schedule cleanup to run daily at 2 AM
+    scheduler.add_job(scheduled_cleanup, 'cron', hour=2, minute=0, id='cleanup_task')
+    scheduler.start()
+    logger.info("✓ Background scheduler started - daily cleanup at 2:00 AM")
+else:
+    logger.warning("APScheduler not installed - automatic cleanup disabled. Install with: pip install apscheduler")
+    scheduler = None
+
 # Register advanced features routes
 register_advanced_features(app, limiter)
 
@@ -162,12 +197,9 @@ def load_settings():
 
     return settings
 
-print("=" * 50)
-print(f"Current directory: {os.getcwd()}")
-print(f"Template folder exists: {os.path.exists('templates')}")
-if os.path.exists('templates'):
-    print(f"Files in templates/: {os.listdir('templates')}")
-print("=" * 50)
+# Template folder verified during development - remove debug output for cleaner logs
+logger.debug(f"Current directory: {os.getcwd()}")
+logger.debug(f"Template folder exists: {os.path.exists('templates')}")
 
 DEFAULT_SETTINGS = {
     "analysis_running": True,
@@ -239,7 +271,7 @@ from blueprints.analytics import analytics_bp
 from blueprints.admin_routes import admin_bp
 from blueprints.sensors import sensors_bp
 from blueprints.data_io import create_data_io_blueprint
-# from blueprints.collaboration import collab_bp, register_collab_sockets  # Temporarily disabled - needs implementation
+from blueprints.collaboration import collab_bp, register_collab_sockets
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(main_bp)
@@ -250,7 +282,7 @@ app.register_blueprint(analytics_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(sensors_bp)
 app.register_blueprint(create_data_io_blueprint(limiter))
-# app.register_blueprint(collab_bp)  # Temporarily disabled
+app.register_blueprint(collab_bp)
 
 # Initialize database tables for new features
 try:
@@ -260,7 +292,7 @@ except Exception as e:
     logger.warning(f"Could not initialize new feature tables: {e}")
 
 # Register real-time collaboration WebSocket handlers
-# register_collab_sockets(socketio)  # Temporarily disabled
+register_collab_sockets(socketio)
 
 # Main routes moved to main blueprint
 
@@ -560,7 +592,7 @@ def history_range(range):
     elif range == "7d":
         rows = db.execute("""
             SELECT ppm, timestamp
-            FROM co2_readings
+            FROM co2_readings   
             WHERE timestamp >= datetime('now', '-7 days')
             ORDER BY timestamp
         """).fetchall()
@@ -1160,7 +1192,7 @@ broadcast_running = False
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection to WebSocket"""
-    print(f"Client connected")
+    logger.info(f"Client connected: {request.sid}")
     emit('status', {'data': 'Connected to Aerium CO₂ Monitor'})
     
     # Send current settings to client
@@ -1170,7 +1202,7 @@ def handle_connect():
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection"""
-    print(f"Client disconnected")
+    logger.info(f"Client disconnected: {request.sid}")
 
 @socketio.on('request_data')
 def handle_request_data():
@@ -1224,13 +1256,13 @@ def start_broadcast_thread():
         broadcast_running = True
         broadcast_thread = threading.Thread(target=broadcast_co2_loop, daemon=True)
         broadcast_thread.start()
-        print("[OK] WebSocket broadcast thread started")
+        logger.info("[OK] WebSocket broadcast thread started")
 
 def stop_broadcast_thread():
     """Stop the background broadcast thread"""
     global broadcast_running
     broadcast_running = False
-    print("[OK] WebSocket broadcast thread stopped")
+    logger.info("[OK] WebSocket broadcast thread stopped")
 
 
 

@@ -1,11 +1,20 @@
-from flask import Blueprint, render_template, redirect, url_for, session
+from flask import Blueprint, render_template, redirect, url_for, session, current_app
 from utils.auth_decorators import login_required
+from utils.cache import TTLCache
 from database import (
     get_db, get_user_by_id, get_user_settings, get_login_history,
     get_admin_stats, get_all_users, is_admin
 )
 
 main_bp = Blueprint('main', __name__)
+
+def get_cache():
+    """Get or create TTL cache for the app"""
+    cache = getattr(current_app, '_ttl_cache', None)
+    if cache is None:
+        cache = TTLCache()
+        setattr(current_app, '_ttl_cache', cache)
+    return cache
 
 @main_bp.route('/')
 @login_required
@@ -17,35 +26,49 @@ def index():
 def dashboard():
     user_id = session.get('user_id')
     if is_admin(user_id):
-        admin_stats = get_admin_stats()
+        # Cache admin stats for 2 minutes
+        cache = get_cache()
+        cache_key = 'admin_stats'
+        admin_stats = cache.get(cache_key)
+        
+        if admin_stats is None:
+            admin_stats = get_admin_stats()
+            cache.set(cache_key, admin_stats, ttl_seconds=120)
+        
         admin_users = get_all_users()
         return render_template('dashboard.html', is_admin=True, admin_stats=admin_stats, admin_users=admin_users)
     else:
         user = get_user_by_id(user_id)
         user_settings = get_user_settings(user_id)
         login_history = get_login_history(user_id, limit=10)
+        
         db = get_db()
         cursor = db.cursor()
+        
+        # Fixed: query correct table name (co2_readings not readings)
         cursor.execute("""
             SELECT COUNT(*) as total_readings, AVG(ppm) as avg_ppm, MAX(ppm) as max_ppm, MIN(ppm) as min_ppm
-            FROM readings
+            FROM co2_readings
             WHERE DATE(timestamp) = CURRENT_DATE
         """)
         today_stats = cursor.fetchone()
+        
         cursor.execute("""
             SELECT COUNT(*) as total_readings, AVG(ppm) as avg_ppm
-            FROM readings
+            FROM co2_readings
             WHERE DATE(timestamp) >= DATE('now', '-7 days')
         """)
         week_stats = cursor.fetchone()
+        
         user_threshold = user_settings.get('co2_threshold', 800) if user_settings else 800
         cursor.execute("""
             SELECT COUNT(*) as bad_events
-            FROM readings
+            FROM co2_readings
             WHERE DATE(timestamp) = CURRENT_DATE AND ppm > ?
         """, (user_threshold,))
         bad_events = cursor.fetchone()
         db.close()
+        
         return render_template('dashboard.html', is_admin=False, user=user, user_settings=user_settings,
                                login_history=login_history, today_stats=today_stats,
                                week_stats=week_stats, bad_events=bad_events)

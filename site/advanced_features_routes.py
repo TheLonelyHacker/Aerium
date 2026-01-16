@@ -13,11 +13,15 @@ from advanced_features import (AdvancedAnalytics, CollaborationManager,
                                PerformanceOptimizer, VisualizationEngine)
 from utils.ai_recommender import AIRecommender
 from database import get_db, is_admin
+from utils.logger import configure_logging
 import json
 from datetime import datetime, timedelta
 import random
 import time
 import secrets
+
+# Configure logger
+logger = configure_logging()
 
 # Helper functions
 def is_logged_in():
@@ -25,30 +29,35 @@ def is_logged_in():
     return 'user_id' in session
 
 def get_user_readings(user_id, hours=None, days=None):
-    """Get CO2 readings for a user - returns sample data for demo"""
-    # TODO: Implement actual readings table query
-    # For now, return sample data for testing
+    """Get CO2 readings for a user from database"""
+    db = get_db()
     
-    if hours:
-        num_readings = max(1, hours)
-    elif days:
-        num_readings = max(1, days * 24)
-    else:
-        num_readings = 24
-    
-    readings = []
-    
-    current_time = datetime.now()
-    base_ppm = random.randint(400, 500)
-    
-    for i in range(num_readings):
-        readings.append({
-            'value': base_ppm + random.randint(-50, 50),
-            'ppm': base_ppm + random.randint(-50, 50),
-            'timestamp': (current_time - timedelta(hours=i)).isoformat()
-        })
-    
-    return readings[::-1]  # Return in chronological order    
+    try:
+        if hours:
+            time_filter = f'-{hours} hours'
+        elif days:
+            time_filter = f'-{days} days'
+        else:
+            time_filter = '-24 hours'
+        
+        rows = db.execute(
+            """
+            SELECT ppm as value, ppm, timestamp
+            FROM co2_readings
+            WHERE timestamp >= datetime('now', ?)
+            ORDER BY timestamp DESC
+            """,
+            (time_filter,)
+        ).fetchall()
+        
+        readings = [dict(row) for row in rows]
+        logger.debug(f"Retrieved {len(readings)} readings for user {user_id}")
+        return readings
+    except Exception as e:
+        logger.exception(f"Error fetching readings for user {user_id}: {e}")
+        return []
+    finally:
+        db.close()[::-1]  # Return in chronological order    
     return readings
 
 
@@ -128,25 +137,22 @@ def setup_analytics_routes(app, limiter):
                 'current_avg': round(current_avg, 1)
             })
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"Prediction failed: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route("/api/analytics/anomalies")
     @limiter.limit("20 per hour")
     def detect_anomalies():
-        @app.route("/api/analytics/anomalies")
-        @limiter.limit("20 per hour")
-        def detect_anomalies():
-            """Detect anomalies in readings using Isolation Forest by default."""
-            if not is_logged_in():
-                return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        """Detect anomalies in readings using Isolation Forest by default."""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
 
+        try:
+            days = request.args.get('days', 7, type=int)
+            method = request.args.get('method', 'isolation_forest')
+
+            db = get_db()
             try:
-                days = request.args.get('days', 7, type=int)
-                method = request.args.get('method', 'isolation_forest')
-
-                db = get_db()
                 readings = db.execute(
                     """
                     SELECT timestamp, ppm
@@ -156,28 +162,29 @@ def setup_analytics_routes(app, limiter):
                     """,
                     (f'-{days} days',),
                 ).fetchall()
+                readings_list = [dict(r) for r in readings]
+            finally:
                 db.close()
 
-                readings_list = [dict(r) for r in readings]
-                result = AdvancedAnalytics.detect_anomalies(readings_list, method=method)
-                return jsonify({'success': True, **result})
-            except Exception as e:
-                import traceback
+            result = AdvancedAnalytics.detect_anomalies(readings_list, method=method)
+            return jsonify({'success': True, **result})
+        except Exception as e:
+            from utils.logger import configure_logging
+            logger_temp = configure_logging()
+            logger_temp.exception(f"Anomaly detection failed: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
 
-                traceback.print_exc()
-                return jsonify({'success': False, 'error': str(e)}), 500
+    @app.route("/api/recommendations/<int:sensor_id>")
+    @limiter.limit("20 per hour")
+    def recommendations(sensor_id: int):
+        """Expose AI recommendations for a given sensor."""
+        if not is_logged_in():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
 
-        @app.route("/api/recommendations/<int:sensor_id>")
-        @limiter.limit("20 per hour")
-        def recommendations(sensor_id: int):
-            """Expose AI recommendations for a given sensor."""
-            if not is_logged_in():
-                return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        building_type = request.args.get('building_type', 'office')
+        occupancy = request.args.get('occupancy', 10, type=int)
 
-            building_type = request.args.get('building_type', 'office')
-            occupancy = request.args.get('occupancy', 10, type=int)
-
-            recommender = AIRecommender()
+        recommender = AIRecommender()
             try:
                 recs = recommender.get_recommendations(sensor_id=sensor_id, building_type=building_type, occupancy_count=occupancy)
                 return jsonify({'success': True, 'recommendations': recs, 'count': len(recs)})
@@ -291,8 +298,7 @@ def setup_analytics_routes(app, limiter):
                 'insights': insights
             })
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"Insights generation failed: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route("/api/health/recommendations")
@@ -401,8 +407,7 @@ def setup_analytics_routes(app, limiter):
             })
         except Exception as e:
             import traceback
-            traceback.print_exc()
-            return jsonify({'success': False, 'error': str(e)}), 500
+            logger.exception(f"Health recommendations failed: {e}"cess': False, 'error': str(e)}), 500
 
 
 # ================================================================================
@@ -703,8 +708,7 @@ def setup_visualization_routes(app, limiter):
                     'heatmap': [[500 for _ in range(7)] for _ in range(24)]
                 })
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"Heatmap generation failed: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route("/api/visualization/correlation")
@@ -765,8 +769,7 @@ def setup_visualization_routes(app, limiter):
                                 correlations.append({'name': 'Humidité', 'value': float(corr)})
                 except Exception as e:
                     # If numpy calculation fails, provide default correlations
-                    import traceback
-                    traceback.print_exc()
+                    logger.warning(f"Correlation calculation failed: {e}")
                 
                 # If no correlations were calculated, provide sample data
                 if not correlations:
@@ -790,8 +793,7 @@ def setup_visualization_routes(app, limiter):
                 })
         except Exception as e:
             import traceback
-            traceback.print_exc()
-            return jsonify({'success': False, 'error': str(e)}), 500
+            logger.exception(f"Correlation calculation failed: {e}"cess': False, 'error': str(e)}), 500
     
     @app.route("/api/dashboard/config")
     @limiter.limit("50 per hour")
@@ -924,8 +926,7 @@ def setup_optimization_routes(app, limiter):
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return jsonify({'success': False, 'error': str(e)}), 500
-    
+            logger.exception(f"Performance metrics failed: {e}"
     @app.route("/api/system/cache/clear", methods=['POST'])
     @limiter.limit("10 per hour")
     def clear_cache():
@@ -989,8 +990,7 @@ def setup_optimization_routes(app, limiter):
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return jsonify({'success': False, 'error': str(e)}), 500
-
+            logger.exception(f"Archive operation failed: {e}"
 
 # ================================================================================
 #                    ROUTES INITIALIZATION
@@ -1730,8 +1730,7 @@ def register_advanced_features(app, limiter):
                 }
             })
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"Query performance analysis failed: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
     
     # Analytics Predictions Alternative Endpoint
@@ -1882,8 +1881,7 @@ def register_advanced_features(app, limiter):
                 }
             })
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"Storage breakdown analysis failed: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route("/api/advanced/collaboration/comments")

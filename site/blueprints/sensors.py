@@ -3,6 +3,7 @@ import time
 from flask import Blueprint, jsonify, request, session
 from utils.auth_decorators import login_required
 from database import (
+    get_db,
     create_sensor,
     get_user_sensors,
     get_sensor_by_id,
@@ -21,12 +22,16 @@ sensors_bp = Blueprint("sensors", __name__, url_prefix="/api")
 _sensor_mode = os.getenv("USE_SCD30", "1")
 _sensor_last_read = 0
 
+from utils.logger import configure_logging
+logger = configure_logging()
+
 
 def _safe_audit(user_id, action, entity_type, entity_id, field, value, ip_address):
+    """Audit logging with proper error handling instead of silent failures"""
     try:
         log_audit(user_id, action, entity_type, entity_id, field, value, ip_address)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Audit logging failed for {action} (user {user_id}): {e}")
 
 
 @sensors_bp.route("/sensor/status")
@@ -35,17 +40,34 @@ def sensor_status():
     """Get current sensor mode and availability status"""
     global _sensor_mode, _sensor_last_read
 
+    available = False
+    driver_name = "None"
+    
     try:
-        from app.sensors.scd30 import SCD30
-
-        scd30 = SCD30()
+        # Try relative import first (when running from site directory)
         try:
-            reading = scd30.read()
-            available = reading is not None
+            from sensors.scd30 import SCD30
+        except ImportError:
+            # Fallback to app-relative import
+            from app.sensors.scd30 import SCD30
+        
+        scd30 = SCD30()
+        reading = scd30.read()
+        if reading is not None:
+            available = True
             _sensor_last_read = time.time()
-        except Exception:
-            available = False
-    except Exception:
+            driver_name = "SCD30"
+    except ImportError:
+        # SCD30 driver not available, will use simulator
+        from utils.logger import configure_logging
+        logger_temp = configure_logging()
+        logger_temp.debug("SCD30 driver not available, using simulator")
+        available = False
+    except Exception as e:
+        # Sensor exists but failed to read
+        from utils.logger import configure_logging
+        logger_temp = configure_logging()
+        logger_temp.warning(f"Sensor read failed: {e}")
         available = False
 
     mode = "real" if _sensor_mode != "0" and available else "simulation"
@@ -55,7 +77,7 @@ def sensor_status():
             "mode": mode,
             "available": available,
             "last_read": _sensor_last_read,
-            "driver": "SCD30" if available else "None",
+            "driver": driver_name,
         }
     )
 
@@ -63,19 +85,34 @@ def sensor_status():
 @sensors_bp.route("/sensor/mode", methods=["POST"])
 @login_required
 def set_sensor_mode():
-    """Set sensor mode (real or simulation)"""
+    """Set sensor mode (real or simulation) - persists to database"""
     global _sensor_mode
 
     data = request.get_json() or {}
     mode = data.get("mode", "simulation")
+    user_id = session.get("user_id")
 
     if mode not in ["real", "simulation"]:
         return jsonify({"error": 'Invalid mode. Must be "real" or "simulation"'}), 400
 
     _sensor_mode = "1" if mode == "real" else "0"
     os.environ["USE_SCD30"] = _sensor_mode
+    
+    # Persist sensor mode to database for persistence across restarts
+    try:
+        db = get_db()
+        db.execute(
+            "REPLACE INTO settings (key, value) VALUES (?, ?)",
+            ("sensor_mode", mode)
+        )
+        db.commit()
+        db.close()
+    except Exception as e:
+        from utils.logger import configure_logging
+        logger_temp = configure_logging()
+        logger_temp.error(f"Failed to persist sensor mode: {e}")
 
-    _safe_audit(session.get("user_id"), "SENSOR_MODE_CHANGE", "sensor", 0, "new_mode", mode, request.remote_addr)
+    _safe_audit(user_id, "SENSOR_MODE_CHANGE", "sensor", 0, "mode", mode, request.remote_addr)
 
     return jsonify({"success": True, "mode": mode, "message": f"Mode capteur défini à: {mode}"})
 

@@ -296,3 +296,120 @@ def api_backup_database():
     except Exception as e:
         log_audit(user_id, "ERROR", f"Backup failed: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+# ================================================================================
+#                    PERMISSION MANAGEMENT ENDPOINTS
+# ================================================================================
+
+@admin_bp.route("/api/admin/permissions/all", methods=["GET"])
+@admin_required
+def list_all_permissions():
+    """Get list of all available permissions"""
+    from database import get_db
+    
+    available_permissions = [
+        'view_analytics',
+        'export_data',
+        'manage_sensors',
+        'create_dashboards',
+        'manage_users',
+        'view_audit_logs',
+        'configure_thresholds',
+        'access_advanced_features'
+    ]
+    
+    return jsonify({"permissions": available_permissions})
+
+
+@admin_bp.route("/api/admin/permissions/user/<int:target_user_id>", methods=["GET"])
+@admin_required
+def get_user_permissions_admin(target_user_id):
+    """Get all permissions for a specific user"""
+    from database import get_user_permissions, get_user_by_id
+    
+    user = get_user_by_id(target_user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    permissions = get_user_permissions(target_user_id)
+    
+    return jsonify({
+        "user_id": target_user_id,
+        "username": user["username"],
+        "role": user["role"],
+        "permissions": permissions or []
+    })
+
+
+@admin_bp.route("/api/admin/permissions/user/<int:target_user_id>", methods=["POST"])
+@admin_required
+def update_user_permissions_admin(target_user_id):
+    """Grant or revoke permissions for a user"""
+    from database import get_user_by_id, grant_permission, revoke_permission
+    
+    data = request.get_json() or {}
+    permission = data.get("permission", "").strip()
+    grant = data.get("grant", True)
+    
+    if not permission:
+        return jsonify({"error": "Permission name required"}), 400
+    
+    user = get_user_by_id(target_user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    admin_id = session.get("user_id")
+    ip_address = request.remote_addr
+    
+    try:
+        if grant:
+            grant_permission(target_user_id, permission)
+            action = f"Permission '{permission}' granted"
+        else:
+            revoke_permission(target_user_id, permission)
+            action = f"Permission '{permission}' revoked"
+        
+        log_audit(admin_id, "PERMISSION_MODIFIED", "user", target_user_id, 
+                 "permission", action, ip_address)
+        
+        return jsonify({"success": True, "action": action})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@admin_bp.route("/api/admin/permissions/bulk", methods=["POST"])
+@admin_required
+def bulk_grant_permissions():
+    """Grant permissions to multiple users at once"""
+    from database import get_user_by_id, grant_permission
+    
+    data = request.get_json() or {}
+    user_ids = data.get("user_ids", [])
+    permission = data.get("permission", "").strip()
+    
+    if not permission or not user_ids:
+        return jsonify({"error": "Permission and user_ids required"}), 400
+    
+    admin_id = session.get("user_id")
+    ip_address = request.remote_addr
+    
+    results = {"granted": 0, "failed": 0, "errors": []}
+    
+    for user_id in user_ids:
+        try:
+            user = get_user_by_id(user_id)
+            if not user:
+                results["failed"] += 1
+                results["errors"].append(f"User {user_id} not found")
+                continue
+            
+            grant_permission(user_id, permission)
+            results["granted"] += 1
+            
+            log_audit(admin_id, "PERMISSION_BULK_GRANT", "user", user_id,
+                     "permission", permission, ip_address)
+        except Exception as e:
+            results["failed"] += 1
+            results["errors"].append(f"User {user_id}: {str(e)}")
+    
+    return jsonify(results)
