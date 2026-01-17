@@ -59,6 +59,7 @@ from database import cleanup_old_data
 from advanced_features import (AdvancedAnalytics, CollaborationManager, 
                                PerformanceOptimizer, VisualizationEngine)
 from advanced_features_routes import register_advanced_features
+from utils.source_helpers import resolve_source_param, build_source_filter
 
 
 
@@ -213,42 +214,6 @@ DEFAULT_SETTINGS = {
     "overview_update_speed": 5,
     "simulate_live": False,
 }
-
-# Centralized source aliases to keep simulation data isolated from live UI
-REAL_SOURCES = ("live", "sensor", "real", "live_real")
-SIM_SOURCES = ("sim",)
-IMPORT_SOURCES = ("import",)
-
-
-def resolve_source_param(*, default="live", allow_sim=False, allow_import=False):
-    """Normalize ?source= query to an allowed bucket (live/sim/import)."""
-    raw = (request.args.get("source") or default)
-    normalized_map = {
-        "live": "live",
-        "real": "live",
-        "hardware": "live",
-        "simulation": "sim",
-        "sim": "sim",
-        "import": "import",
-        "csv": "import",
-    }
-    normalized = normalized_map.get(str(raw).lower(), "live")
-
-    if normalized == "sim" and not allow_sim:
-        normalized = "live"
-    if normalized == "import" and not allow_import:
-        normalized = "live"
-
-    return normalized
-
-
-def build_source_filter(db_source):
-    """Return SQL clause and params for the chosen data source bucket."""
-    if db_source == "sim":
-        return "source = ?", SIM_SOURCES
-    if db_source == "import":
-        return "source = ?", IMPORT_SOURCES
-    return f"source IN ({','.join('?' * len(REAL_SOURCES))})", REAL_SOURCES
 
 def save_settings(data):
     db = get_db()
@@ -578,32 +543,37 @@ def global_search():
 # Analytics routes moved to blueprints/analytics.py
 
 @app.route("/api/history/<range>")
+@login_required
 def history_range(range):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
     db = get_db()
 
     if range == "today":
         rows = db.execute("""
             SELECT ppm, timestamp
             FROM co2_readings
-            WHERE date(timestamp) = date('now')
+            WHERE date(timestamp) = date('now') AND user_id = ?
             ORDER BY timestamp
-        """).fetchall()
+        """, (user_id,)).fetchall()
 
     elif range == "7d":
         rows = db.execute("""
             SELECT ppm, timestamp
             FROM co2_readings   
-            WHERE timestamp >= datetime('now', '-7 days')
+            WHERE timestamp >= datetime('now', '-7 days') AND user_id = ?
             ORDER BY timestamp
-        """).fetchall()
+        """, (user_id,)).fetchall()
 
     elif range == "30d":
         rows = db.execute("""
             SELECT ppm, timestamp
             FROM co2_readings
-            WHERE timestamp >= datetime('now', '-30 days')
+            WHERE timestamp >= datetime('now', '-30 days') AND user_id = ?
             ORDER BY timestamp
-        """).fetchall()
+        """, (user_id,)).fetchall()
 
     else:
         db.close()
@@ -614,16 +584,21 @@ def history_range(range):
 
 # 3. API ROUTES
 def get_latest_real_reading(max_age_minutes: int = 1):
-    """Return the most recent hardware reading if it is fresh enough (default 1 min)."""
+    """Return the most recent hardware reading for the current user if fresh enough."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return None
+
     db = get_db()
     row = db.execute(
         """
         SELECT ppm, temperature, humidity, timestamp, source
         FROM co2_readings
-        WHERE source IN ('sensor','live_real')
+        WHERE source IN ('sensor','live_real') AND user_id = ?
         ORDER BY timestamp DESC
         LIMIT 1
-        """
+        """,
+        (user_id,)
     ).fetchone()
     db.close()
 
@@ -646,6 +621,15 @@ def get_latest_real_reading(max_age_minutes: int = 1):
 def build_live_payload(settings=None):
     """Centralized live-reading builder (used by HTTP and WebSocket)."""
     settings = settings or load_settings()
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return settings, {
+            "analysis_running": False,
+            "ppm": None,
+            "reason": "unauthenticated",
+            "timestamp": datetime.now(UTC).isoformat()
+        }
 
     # Respect paused state first
     if not settings.get("analysis_running", True):
@@ -687,6 +671,7 @@ def build_live_payload(settings=None):
 
 @app.route("/api/live/latest")
 @limiter.exempt
+@login_required
 def api_live_latest():
     _, payload = build_live_payload()
     resp = make_response(jsonify(payload))
@@ -696,12 +681,16 @@ def api_live_latest():
 
 @app.route("/api/readings", methods=["POST", "GET"])
 @limiter.exempt
+@login_required
 def api_readings_ingest():
     """Ingest real sensor readings (POST) or fetch recent readings (GET)."""
     if request.method == "GET":
         days = request.args.get("days", default=1, type=int)
         db_source = resolve_source_param(allow_sim=True, allow_import=True)
         source_clause, source_params = build_source_filter(db_source)
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"error": "Unauthorized"}), 401
         db = get_db()
         rows = db.execute(
             f"""
@@ -709,9 +698,10 @@ def api_readings_ingest():
             FROM co2_readings
             WHERE timestamp >= datetime('now', ?)
             AND {source_clause}
+            AND user_id = ?
             ORDER BY timestamp DESC
             """,
-            (f"-{days} days", *source_params)
+            (f"-{days} days", *source_params, user_id)
         ).fetchall()
         db.close()
         return jsonify([dict(r) for r in rows])
@@ -729,11 +719,13 @@ def api_readings_ingest():
     except Exception:
         return jsonify({"error": "ppm must be numeric"}), 400
 
-    save_reading(ppm_int, temp, humidity, source="sensor", persist=True)
+    user_id = session.get("user_id")
+    save_reading(ppm_int, temp, humidity, source="sensor", persist=True, user_id=user_id)
     return jsonify({"success": True})
 
 
 @app.route("/api/latest")
+@login_required
 def api_latest():
     # Backward-compatible alias
     return api_live_latest()
@@ -741,6 +733,7 @@ def api_latest():
 
 @app.route("/api/simulator/latest")
 @limiter.exempt
+@login_required
 def api_simulator_latest():
     """Simulator-only feed that stays independent from the live pipeline."""
     settings = load_settings()
@@ -751,7 +744,8 @@ def api_simulator_latest():
     humidity = data.get("humidity")
 
     # Persist simulator traffic as source="sim" so analytics can display it
-    save_reading(ppm, temp, humidity, source="sim", persist=True)
+    user_id = session.get("user_id")
+    save_reading(ppm, temp, humidity, source="sim", persist=True, user_id=user_id)
 
     resp = make_response(jsonify({
         "analysis_running": True,
@@ -764,7 +758,11 @@ def api_simulator_latest():
     return resp
 
 @app.route("/api/history/today")
+@login_required
 def api_history_today():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
     source_raw = request.args.get("source", "real")
 
     db = get_db()
@@ -773,9 +771,10 @@ def api_history_today():
             """
             SELECT ppm, temperature, humidity, timestamp, source
             FROM co2_readings
-            WHERE date(timestamp) = date('now')
+            WHERE date(timestamp) = date('now') AND user_id = ?
             ORDER BY timestamp
-            """
+            """,
+            (user_id,)
         ).fetchall()
     else:
         db_source = resolve_source_param(default="live", allow_sim=True, allow_import=True)
@@ -784,26 +783,29 @@ def api_history_today():
             f"""
             SELECT ppm, temperature, humidity, timestamp, source
             FROM co2_readings
-            WHERE date(timestamp) = date('now') AND {source_clause}
+            WHERE date(timestamp) = date('now') AND {source_clause} AND user_id = ?
             ORDER BY timestamp
             """,
-            source_params
+            (*source_params, user_id)
         ).fetchall()
 
     db.close()
 
     return jsonify([dict(r) for r in rows])
 
-def get_today_history(db_source="live"):
+def get_today_history(db_source="live", user_id=None):
+    if not user_id:
+        return []
+
     source_clause, source_params = build_source_filter(db_source)
 
     db = get_db()
     rows = db.execute(f"""
         SELECT ppm, timestamp
         FROM co2_readings
-        WHERE date(timestamp) = date('now') AND {source_clause}
+        WHERE date(timestamp) = date('now') AND {source_clause} AND user_id = ?
         ORDER BY timestamp
-    """, source_params).fetchall()
+    """, (*source_params, user_id)).fetchall()
     db.close()
 
     return [dict(r) for r in rows]
@@ -811,8 +813,11 @@ def get_today_history(db_source="live"):
 
 @limiter.exempt
 @app.route("/api/settings", methods=["GET", "POST", "DELETE"])
+@login_required
 def api_settings():
     if request.method == "POST":
+        if not is_admin(session.get("user_id")):
+            return jsonify({"error": "Admin required"}), 403
         data = request.json
         
         # Map warning_threshold to bad_threshold for backend compatibility
@@ -830,6 +835,8 @@ def api_settings():
         return jsonify({"status": "ok", "settings": saved_settings})
 
     if request.method == "DELETE":
+        if not is_admin(session.get("user_id")):
+            return jsonify({"error": "Admin required"}), 403
         db = get_db()
         db.execute("DELETE FROM settings")
         db.commit()
@@ -906,24 +913,30 @@ def api_change_password():
 # Admin data endpoints moved to blueprints/admin_routes.py
 
 @app.route("/api/history/latest/<int:limit>")
+@login_required
 def api_history_latest(limit):
     db_source = resolve_source_param(allow_sim=True, allow_import=True)
     source_clause, source_params = build_source_filter(db_source)
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
 
     db = get_db()
     rows = db.execute(f"""
         SELECT id, ppm, timestamp
         FROM co2_readings
-        WHERE {source_clause}
+        WHERE {source_clause} AND user_id = ?
         ORDER BY id DESC
         LIMIT ?
-    """, (*source_params, limit)).fetchall()
+    """, (*source_params, user_id, limit)).fetchall()
     db.close()
 
     # reverse so oldest → newest
     return jsonify([dict(r) for r in reversed(rows)])
 
 @app.route("/api/cleanup", methods=["POST"])
+@login_required
+@admin_required
 def api_cleanup():
     """Clean up old CO₂ readings (default: 90 days)"""
     days = request.json.get("days", 90) if request.json else 90
@@ -931,6 +944,8 @@ def api_cleanup():
     return jsonify({"status": "ok", "deleted": deleted, "days": days})
 
 @app.route("/api/reset-state", methods=["POST"])
+@login_required
+@admin_required
 def api_reset_state():
     """Reset CO₂ generator state"""
     base = request.json.get("base", 600) if request.json else 600
@@ -998,9 +1013,11 @@ def generate_pdf(html):
 
 
 @app.route("/api/report/daily/pdf")
+@login_required
 def export_daily_pdf():
     db_source = resolve_source_param(allow_sim=True, allow_import=True)
-    data = get_today_history(db_source)
+    user_id = session.get("user_id")
+    data = get_today_history(db_source, user_id)
     settings = load_settings()
 
     if not data:
@@ -1094,6 +1111,7 @@ def metrics():
 # ================================================================================
 
 @app.route("/api/simulator/scenario/<scenario_name>", methods=['POST'])
+@login_required
 def set_simulation_scenario(scenario_name):
     """Set simulation scenario for testing"""
     # Allow scenario changes without admin gate for local simulator control
@@ -1122,6 +1140,7 @@ def set_simulation_scenario(scenario_name):
 
 @app.route("/api/simulator/status", methods=['GET'])
 @limiter.exempt
+@login_required
 def get_simulator_status():
     """Get current simulator status"""
     info = get_scenario_info()
@@ -1140,6 +1159,7 @@ def get_simulator_status():
 
 
 @app.route("/api/simulator/pause", methods=['POST'])
+@login_required
 def pause_simulator():
     """Pause or resume the simulator progression."""
     desired = False
@@ -1164,6 +1184,7 @@ def pause_simulator():
 
 
 @app.route("/api/simulator/reset", methods=['POST'])
+@login_required
 def reset_simulator():
     """Reset simulator to initial state"""
     if not is_admin(session.get('user_id')):

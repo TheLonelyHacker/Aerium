@@ -73,7 +73,9 @@ def init_db():
             ppm INTEGER NOT NULL,
             temperature REAL,
             humidity REAL,
-            source TEXT DEFAULT 'live'
+            source TEXT DEFAULT 'live',
+            user_id INTEGER,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
 
@@ -81,7 +83,8 @@ def init_db():
     for column_def in [
         ("temperature", "REAL"),
         ("humidity", "REAL"),
-        ("source", "TEXT DEFAULT 'live'")
+        ("source", "TEXT DEFAULT 'live'"),
+        ("user_id", "INTEGER")
     ]:
         try:
             cur.execute(f"ALTER TABLE co2_readings ADD COLUMN {column_def[0]} {column_def[1]}")
@@ -99,6 +102,12 @@ def init_db():
     cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_co2_date 
         ON co2_readings(date(timestamp))
+    """)
+
+    # Index on user_id for multi-tenant isolation
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_co2_user_id 
+        ON co2_readings(user_id)
     """)
 
     # Settings persistence
@@ -1623,7 +1632,7 @@ def get_users_with_permission(permission):
 #                      CSV IMPORT FUNCTIONS
 # ================================================================================
 
-def import_csv_readings(readings_list):
+def import_csv_readings(readings_list, user_id=None):
     """Import list of CO₂ readings from CSV
     Expected format: [{'timestamp': '2024-01-01 12:00:00', 'ppm': 850}, ...]
     """
@@ -1647,8 +1656,8 @@ def import_csv_readings(readings_list):
             
             # Insert
             db.execute(
-                "INSERT INTO co2_readings (timestamp, ppm, source) VALUES (?, ?, ?)",
-                (timestamp, ppm, 'import')
+                "INSERT INTO co2_readings (timestamp, ppm, source, user_id) VALUES (?, ?, ?, ?)",
+                (timestamp, ppm, 'import', user_id)
             )
             imported_count += 1
         except ValueError as e:

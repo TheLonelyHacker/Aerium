@@ -3,6 +3,7 @@ from datetime import datetime, UTC, timedelta
 from flask import Blueprint, jsonify, make_response, request, session
 from utils.auth_decorators import login_required, admin_required
 from werkzeug.utils import secure_filename
+from utils.source_helpers import resolve_source_param, build_source_filter
 from database import (
     get_db,
     create_scheduled_export,
@@ -36,11 +37,7 @@ def create_data_io_blueprint(limiter=None):
     @limit("10 per minute")
     def export_json():
         user_id = session.get("user_id")
-        _ = user_id  # Keep parity with previous implementation
         days = request.args.get("days", 30, type=int)
-
-        from app import resolve_source_param, build_source_filter
-
         db_source = resolve_source_param(allow_sim=False, allow_import=True)
         source_clause, source_params = build_source_filter(db_source)
 
@@ -50,9 +47,10 @@ def create_data_io_blueprint(limiter=None):
             SELECT timestamp, ppm FROM co2_readings
             WHERE timestamp >= datetime('now', '-' || ? || ' days')
             AND {source_clause}
+            AND user_id = ?
             ORDER BY timestamp DESC
             """,
-            (days, *source_params),
+            (days, *source_params, user_id),
         ).fetchall()
         db.close()
 
@@ -70,11 +68,7 @@ def create_data_io_blueprint(limiter=None):
     @limit("10 per minute")
     def export_csv():
         user_id = session.get("user_id")
-        _ = user_id
         days = request.args.get("days", 30, type=int)
-
-        from app import resolve_source_param, build_source_filter
-
         db_source = resolve_source_param(allow_sim=False, allow_import=True)
         source_clause, source_params = build_source_filter(db_source)
 
@@ -84,9 +78,10 @@ def create_data_io_blueprint(limiter=None):
             SELECT timestamp, ppm FROM co2_readings
             WHERE timestamp >= datetime('now', '-' || ? || ' days')
             AND {source_clause}
+            AND user_id = ?
             ORDER BY timestamp DESC
             """,
-            (days, *source_params),
+            (days, *source_params, user_id),
         ).fetchall()
         db.close()
 
@@ -101,11 +96,7 @@ def create_data_io_blueprint(limiter=None):
     @limit("10 per minute")
     def export_excel():
         user_id = session.get("user_id")
-        _ = user_id
         days = request.args.get("days", 30, type=int)
-
-        from app import resolve_source_param, build_source_filter
-
         db_source = resolve_source_param(allow_sim=False, allow_import=True)
         source_clause, source_params = build_source_filter(db_source)
 
@@ -115,9 +106,10 @@ def create_data_io_blueprint(limiter=None):
             SELECT timestamp, ppm FROM co2_readings
             WHERE timestamp >= datetime('now', '-' || ? || ' days')
             AND {source_clause}
+            AND user_id = ?
             ORDER BY timestamp DESC
             """,
-            (days, *source_params),
+            (days, *source_params, user_id),
         ).fetchall()
         db.close()
 
@@ -198,6 +190,8 @@ def create_data_io_blueprint(limiter=None):
         from utils.csv_validator import CSVValidator
         from utils.api_responses import error_response, success_response
 
+        user_id = session.get("user_id")
+
         if "file" not in request.files:
             return error_response("No file uploaded", status_code=400, error_code="NO_FILE")
 
@@ -216,9 +210,9 @@ def create_data_io_blueprint(limiter=None):
                 return error_response("CSV validation failed", status_code=422, error_code="VALIDATION_FAILED", details=validation_result)
 
             if validation_result["valid_rows"]:
-                result = import_csv_readings(validation_result["valid_rows"])
+                result = import_csv_readings(validation_result["valid_rows"], user_id=user_id)
                 log_audit(
-                    session.get("user_id"),
+                    user_id,
                     "CSV_IMPORT",
                     "data",
                     0,
@@ -245,6 +239,7 @@ def create_data_io_blueprint(limiter=None):
             return error_response(f"Failed to process CSV: {str(e)}", status_code=500, error_code="PROCESSING_ERROR")
 
     @bp.route("/import/stats")
+    @login_required
     @admin_required
     def import_stats():
         stats = get_csv_import_stats()

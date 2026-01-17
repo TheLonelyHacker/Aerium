@@ -3,36 +3,14 @@ Analytics Blueprint
 Handles all CO₂ analytics, reporting, and trend analysis routes
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session, current_app
 from datetime import datetime, date, timedelta
 from database import get_db
 from utils.auth_decorators import login_required
 from utils.cache import TTLCache
-from flask import current_app
+from utils.source_helpers import resolve_source_param, build_source_filter
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/analytics')
-
-# Helper functions
-def resolve_source_param(allow_sim=True, allow_import=True):
-    """Resolve which data source to use (live, simulator, or imported)"""
-    db_source = request.args.get('source', 'live')
-    
-    if db_source == 'simulator' and not allow_sim:
-        return 'live'
-    if db_source == 'import' and not allow_import:
-        return 'live'
-    
-    return db_source
-
-
-def build_source_filter(db_source):
-    """Build SQL filter clause for data source"""
-    if db_source == 'simulator':
-        return "source = 'simulator'", []
-    elif db_source == 'import':
-        return "source = 'import'", []
-    else:
-        return "source = 'live'", []
 
 
 # ==================== ROUTE HANDLERS ====================
@@ -43,6 +21,9 @@ def week_compare():
     """Compare current week vs previous week"""
     db_source = resolve_source_param(allow_sim=True, allow_import=True)
     source_clause, source_params = build_source_filter(db_source)
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
     
     cache = getattr(current_app, '_ttl_cache', None)
     if cache is None:
@@ -57,18 +38,20 @@ def week_compare():
             FROM co2_readings
             WHERE timestamp >= datetime('now', '-7 days')
             AND {source_clause}
+            AND user_id = ?
             GROUP BY DATE(timestamp)
             ORDER BY date
-        """, source_params).fetchall()
+        """, (*source_params, user_id)).fetchall()
         
         prev_week = db.execute(f"""
             SELECT DATE(timestamp) as date, AVG(ppm) as avg_ppm, MAX(ppm) as max_ppm, MIN(ppm) as min_ppm, COUNT(*) as count
             FROM co2_readings
             WHERE timestamp >= datetime('now', '-14 days') AND timestamp < datetime('now', '-7 days')
             AND {source_clause}
+            AND user_id = ?
             GROUP BY DATE(timestamp)
             ORDER BY date
-        """, source_params).fetchall()
+        """, (*source_params, user_id)).fetchall()
         
         db.close()
         return {
@@ -76,7 +59,7 @@ def week_compare():
             'previous_week': [dict(row) for row in prev_week]
         }
     
-    key = f"weekcompare:{db_source}"
+    key = f"weekcompare:{db_source}:{user_id}"
     result = cache.cached(key, ttl_seconds=60, loader=load_data)
     return jsonify(result)
 
@@ -87,6 +70,9 @@ def analytics_trend():
     """Get trend analysis (rising/stable/falling)"""
     db_source = resolve_source_param(allow_sim=True, allow_import=True)
     source_clause, source_params = build_source_filter(db_source)
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
     
     cache = getattr(current_app, '_ttl_cache', None)
     if cache is None:
@@ -104,10 +90,11 @@ def analytics_trend():
                     COUNT(*) as readings
                 FROM co2_readings
                 WHERE {source_clause}
+                AND user_id = ?
                 GROUP BY hour
                 ORDER BY hour DESC
                 LIMIT 168
-            """, source_params).fetchall()
+            """, (*source_params, user_id)).fetchall()
         else:
             data = db.execute(f"""
                 SELECT 
@@ -116,25 +103,28 @@ def analytics_trend():
                     COUNT(*) as readings
                 FROM co2_readings
                 WHERE timestamp >= datetime('now', '-7 days')
-                AND {source_clause}
+                AND {source_clause} AND user_id = ?
                 GROUP BY hour
                 ORDER BY hour DESC
-                LIMIT 168
-            """, source_params).fetchall()
+            """, (*source_params, user_id)).fetchall()
         
         db.close()
         return data
     
-    key = f"trend:{db_source}"
+    key = f"trend:{db_source}:{user_id}"
     data = cache.cached(key, ttl_seconds=60, loader=load_data)
-    
-    if len(data) < 2:
-        return jsonify({'trend': 'insufficient_data', 'data': []})
-    
-    recent_avg = sum(d['avg_ppm'] for d in data[:24]) / min(24, len(data))
-    older_data = data[24:48]
-    
-    if len(older_data) == 0:
+    if not data or len(data) < 2:
+        return jsonify({'trend': 'insufficient_data', 'data': [dict(d) for d in data]})
+
+    recent_window = data[:24]
+    older_window = data[24:48]
+
+    if not recent_window:
+        return jsonify({'trend': 'insufficient_data', 'data': [dict(d) for d in data]})
+
+    recent_avg = sum(d['avg_ppm'] for d in recent_window) / len(recent_window)
+
+    if not older_window:
         return jsonify({
             'trend': 'insufficient_data',
             'recent_avg': round(recent_avg, 1),
@@ -142,11 +132,12 @@ def analytics_trend():
             'percent_change': 0,
             'data': [dict(d) for d in data]
         })
-    
-    older_avg = sum(d['avg_ppm'] for d in older_data) / len(older_data)
-    
+
+    older_avg = sum(d['avg_ppm'] for d in older_window) / len(older_window)
+
     if older_avg == 0:
         trend = 'insufficient_data'
+        percent_change = 0
     else:
         percent_change = ((recent_avg - older_avg) / older_avg) * 100
         if percent_change > 5:
@@ -160,7 +151,7 @@ def analytics_trend():
         'trend': trend,
         'recent_avg': round(recent_avg, 1),
         'older_avg': round(older_avg, 1),
-        'percent_change': round(((recent_avg - older_avg) / older_avg) * 100, 1) if older_avg else 0,
+        'percent_change': round(percent_change, 1),
         'data': [dict(d) for d in data]
     })
 
@@ -174,6 +165,9 @@ def analytics_custom_range():
     
     db_source = resolve_source_param(allow_sim=True, allow_import=True)
     source_clause, source_params = build_source_filter(db_source)
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
     
     db = get_db()
     
@@ -181,8 +175,9 @@ def analytics_custom_range():
         SELECT timestamp, ppm FROM co2_readings
         WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
         AND {source_clause}
+        AND user_id = ?
         ORDER BY timestamp
-    """, (start_date, end_date, *source_params)).fetchall()
+    """, (start_date, end_date, *source_params, user_id)).fetchall()
     
     stats = db.execute(f"""
         SELECT 
@@ -193,7 +188,8 @@ def analytics_custom_range():
         FROM co2_readings
         WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
         AND {source_clause}
-    """, (start_date, end_date, *source_params)).fetchone()
+        AND user_id = ?
+    """, (start_date, end_date, *source_params, user_id)).fetchone()
     
     db.close()
     
@@ -210,6 +206,9 @@ def compare_periods():
     period_type = request.args.get('type', 'week')
     db_source = resolve_source_param(allow_sim=True, allow_import=True)
     source_clause, source_params = build_source_filter(db_source)
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
     
     db = get_db()
     
@@ -217,21 +216,27 @@ def compare_periods():
         if db_source == 'import':
             date_range = db.execute(f"""
                 SELECT MIN(timestamp) as min_date, MAX(timestamp) as max_date
-                FROM co2_readings WHERE {source_clause}
-            """, source_params).fetchone()
+                FROM co2_readings WHERE {source_clause} AND user_id = ?
+            """, (*source_params, user_id)).fetchone()
             
             if date_range and date_range['min_date'] and date_range['max_date']:
                 current_data = db.execute(f"""
                     SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
                     FROM co2_readings
-                    WHERE {source_clause} AND timestamp >= (SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2) FROM co2_readings WHERE {source_clause})
-                """, (*source_params, *source_params)).fetchone()
+                    WHERE {source_clause} AND user_id = ? AND timestamp >= (
+                        SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2)
+                        FROM co2_readings WHERE {source_clause} AND user_id = ?
+                    )
+                """, (*source_params, user_id, *source_params, user_id)).fetchone()
                 
                 previous_data = db.execute(f"""
                     SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
                     FROM co2_readings
-                    WHERE {source_clause} AND timestamp < (SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2) FROM co2_readings WHERE {source_clause})
-                """, (*source_params, *source_params)).fetchone()
+                    WHERE {source_clause} AND user_id = ? AND timestamp < (
+                        SELECT datetime((julianday(MIN(timestamp)) + julianday(MAX(timestamp))) / 2)
+                        FROM co2_readings WHERE {source_clause} AND user_id = ?
+                    )
+                """, (*source_params, user_id, *source_params, user_id)).fetchone()
             else:
                 current_data = {'avg': 0, 'min': 0, 'max': 0, 'count': 0}
                 previous_data = {'avg': 0, 'min': 0, 'max': 0, 'count': 0}
@@ -241,14 +246,16 @@ def compare_periods():
                 FROM co2_readings
                 WHERE timestamp >= datetime('now', '-7 days')
                 AND {source_clause}
-            """, source_params).fetchone()
+                AND user_id = ?
+            """, (*source_params, user_id)).fetchone()
             
             previous_data = db.execute(f"""
                 SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
                 FROM co2_readings
                 WHERE timestamp >= datetime('now', '-14 days') AND timestamp < datetime('now', '-7 days')
                 AND {source_clause}
-            """, source_params).fetchone()
+                AND user_id = ?
+            """, (*source_params, user_id)).fetchone()
     
     elif period_type == 'month':
         current_data = db.execute(f"""
@@ -256,7 +263,8 @@ def compare_periods():
             FROM co2_readings
             WHERE timestamp >= datetime('now', 'start of month')
             AND {source_clause}
-        """, source_params).fetchone()
+            AND user_id = ?
+        """, (*source_params, user_id)).fetchone()
         
         previous_data = db.execute(f"""
             SELECT AVG(ppm) as avg, MIN(ppm) as min, MAX(ppm) as max, COUNT(*) as count
@@ -264,7 +272,8 @@ def compare_periods():
             WHERE timestamp >= datetime('now', '-1 month', 'start of month')
             AND timestamp < datetime('now', 'start of month')
             AND {source_clause}
-        """, source_params).fetchone()
+            AND user_id = ?
+        """, (*source_params, user_id)).fetchone()
     else:
         db.close()
         return jsonify({'error': 'Invalid period_type'}), 400
@@ -294,6 +303,9 @@ def daily_comparison():
     """Get daily averages for trend visualization"""
     db_source = resolve_source_param(allow_sim=True, allow_import=True)
     source_clause, source_params = build_source_filter(db_source)
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
     
     db = get_db()
     
@@ -307,9 +319,10 @@ def daily_comparison():
                 COUNT(*) as readings
             FROM co2_readings
             WHERE {source_clause}
+            AND user_id = ?
             GROUP BY DATE(timestamp)
             ORDER BY date ASC
-        """, source_params).fetchall()
+        """, (*source_params, user_id)).fetchall()
     else:
         days_data = db.execute(f"""
             SELECT 
@@ -321,9 +334,10 @@ def daily_comparison():
             FROM co2_readings
             WHERE timestamp >= datetime('now', '-30 days')
             AND {source_clause}
+            AND user_id = ?
             GROUP BY DATE(timestamp)
             ORDER BY date ASC
-        """, source_params).fetchall()
+        """, (*source_params, user_id)).fetchall()
     
     db.close()
     
@@ -346,6 +360,9 @@ def generate_pdf_report():
     
     db_source = resolve_source_param(allow_sim=False, allow_import=True)
     source_clause, source_params = build_source_filter(db_source)
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
     
     db = get_db()
     
@@ -354,9 +371,10 @@ def generate_pdf_report():
         FROM co2_readings
         WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
         AND {source_clause}
+        AND user_id = ?
         GROUP BY DATE(timestamp)
         ORDER BY date
-    """, (start_date, end_date, *source_params)).fetchall()
+    """, (start_date, end_date, *source_params, user_id)).fetchall()
     
     stats = db.execute(f"""
         SELECT 
@@ -367,7 +385,8 @@ def generate_pdf_report():
         FROM co2_readings
         WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?
         AND {source_clause}
-    """, (start_date, end_date, *source_params)).fetchone()
+        AND user_id = ?
+    """, (start_date, end_date, *source_params, user_id)).fetchone()
     
     db.close()
     

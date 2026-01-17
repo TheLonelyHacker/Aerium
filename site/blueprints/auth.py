@@ -44,7 +44,8 @@ def login_page():
             next_page = request.args.get('next')
             if next_page and next_page.startswith('/'):
                 return redirect(next_page)
-            return redirect(url_for('index'))
+            # Redirect to main index after successful login
+            return redirect(url_for('main.index'))
         else:
             return render_template("auth/login.html", error="Identifiants invalides")
 
@@ -126,11 +127,12 @@ def register_page():
         email_sent = send_verification_email(email, username, token) if 'send_verification_email' in globals() else False
 
         if email_sent:
-            return render_template("register.html", success=True, message=f"Inscription réussie! Vérifiez votre email ({email}) pour confirmer votre compte.")
+            # Use correct template path within auth/
+            return render_template("auth/register.html", success=True, message=f"Inscription réussie! Vérifiez votre email ({email}) pour confirmer votre compte.")
         else:
             session['user_id'] = user_id
             session['username'] = username
-            return redirect(url_for('onboarding_page')) if 'onboarding_page' in globals() else redirect(url_for('index'))
+            return redirect(url_for('main.onboarding_page')) if 'onboarding_page' in globals() else redirect(url_for('main.index'))
 
     return render_template("auth/register.html")
 

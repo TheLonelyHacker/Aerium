@@ -257,7 +257,7 @@ def generate_co2(realistic=True):
     return data['co2']
 
 
-def save_reading(ppm: int, temp: Optional[float] = None, humidity: Optional[float] = None, *, source: str = "live", persist: bool = True):
+def save_reading(ppm: int, temp: Optional[float] = None, humidity: Optional[float] = None, *, source: str = "live", persist: bool = True, user_id: Optional[int] = None):
     """Save CO₂ reading to the database with optional source tagging.
 
     Args:
@@ -273,16 +273,21 @@ def save_reading(ppm: int, temp: Optional[float] = None, humidity: Optional[floa
     db = get_db()
 
     try:
-        if temp is not None and humidity is not None:
-            db.execute(
-                "INSERT INTO co2_readings (ppm, temperature, humidity, source) VALUES (?, ?, ?, ?)",
-                (ppm, temp, humidity, source)
-            )
-        else:
-            db.execute(
-                "INSERT INTO co2_readings (ppm, source) VALUES (?, ?)",
-                (ppm, source)
-            )
+        columns = ["ppm", "source", "user_id"]
+        values = [ppm, source, user_id]
+
+        if temp is not None:
+            columns.append("temperature")
+            values.append(temp)
+        if humidity is not None:
+            columns.append("humidity")
+            values.append(humidity)
+
+        placeholders = ",".join(["?"] * len(columns))
+        db.execute(
+            f"INSERT INTO co2_readings ({','.join(columns)}) VALUES ({placeholders})",
+            tuple(values)
+        )
     except Exception:
         # Fallback if newer columns are missing on an older schema
         db.execute(
