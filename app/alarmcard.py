@@ -31,7 +31,7 @@ class AlarmCard(MDCard):
 
         # Switch
         switch = MDSwitch(
-            pos_hint={"center_y": 0.5, "right": 0.95},
+            pos_hint={"center_y": 0.5, "right": 0.88},
             x=-20,
         )
         # Alarme active par defaut

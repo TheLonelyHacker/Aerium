@@ -12,7 +12,8 @@ import json
 try:
     from weasyprint import HTML, CSS
     WEASYPRINT_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as e:
+    # WeasyPrint not available (ImportError) or GTK libraries missing on Windows (OSError)
     WEASYPRINT_AVAILABLE = False
 
 try:
@@ -125,13 +126,16 @@ class DataExporter:
         output.seek(0)
         return output
     
-    def export_to_pdf(self, html_content: str, filename: str = "export") -> Optional[io.BytesIO]:
+    def export_to_pdf(self, data: List[Dict] = None, html_content: str = None, 
+                      filename: str = "export", title: str = "CO₂ Report") -> Optional[io.BytesIO]:
         """
-        Export HTML content to PDF
+        Export data to PDF format
         
         Args:
+            data: List of dictionaries to export (alternative to html_content)
             html_content: HTML string to convert to PDF
             filename: Name for the file (without extension)
+            title: Report title
         
         Returns:
             BytesIO object containing PDF data or None if WeasyPrint unavailable
@@ -140,6 +144,21 @@ class DataExporter:
             return None
         
         try:
+            # If data provided, generate HTML first
+            if data is not None:
+                summary = {
+                    'Total Records': len(data),
+                    'Date Range': f"Last {len(data)} readings",
+                    'Avg PPM': f"{sum(r.get('ppm', 0) for r in data) / len(data):.0f}" if data else "N/A",
+                    'Generated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+                html_content = self.generate_report_html(title, summary, data)
+            
+            if html_content is None:
+                return None
+            
+            # Import here to ensure WEASYPRINT_AVAILABLE was checked first
+            from weasyprint import HTML
             html = HTML(string=html_content)
             pdf_bytes = html.write_pdf()
             return io.BytesIO(pdf_bytes)
