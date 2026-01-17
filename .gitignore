@@ -2,6 +2,7 @@
 kivy_venv/
 .venv/
 venv/
+.venv311/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/*
