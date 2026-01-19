@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Create Sensor - Aerium{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-plus"></i> Create New Sensor</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{{ url_for('sensors.create') }}">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Sensor Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                            <small class="text-muted">E.g., "Office Main Room", "Meeting Room A"</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Location *</label>
+                            <input type="text" class="form-control" id="location" name="location" required>
+                            <small class="text-muted">E.g., "Building 1, Floor 2", "Home Office"</small>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="mb-3">CO₂ Thresholds (ppm)</h5>
+                        
+                        <div class="mb-3">
+                            <label for="threshold_good" class="form-label">
+                                <span class="badge bg-success">Good</span> Threshold
+                            </label>
+                            <input type="number" class="form-control" id="threshold_good" 
+                                   name="threshold_good" value="800" min="0" max="5000">
+                            <small class="text-muted">Below this value is considered good air quality</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="threshold_moderate" class="form-label">
+                                <span class="badge bg-warning">Moderate</span> Threshold
+                            </label>
+                            <input type="number" class="form-control" id="threshold_moderate" 
+                                   name="threshold_moderate" value="1000" min="0" max="5000">
+                            <small class="text-muted">Between good and moderate thresholds</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="threshold_poor" class="form-label">
+                                <span class="badge bg-danger">Poor</span> Threshold
+                            </label>
+                            <input type="number" class="form-control" id="threshold_poor" 
+                                   name="threshold_poor" value="1500" min="0" max="5000">
+                            <small class="text-muted">Above this value is considered critical</small>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary flex-fill">
+                                <i class="fas fa-save"></i> Create Sensor
+                            </button>
+                            <a href="{{ url_for('sensors.index') }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

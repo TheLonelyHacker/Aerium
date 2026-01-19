@@ -1,117 +1,177 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %}
 
-<!-- ================= HERO ================= -->
-<section class="hero" aria-label="Vue d'ensemble Aerium">
-  <div class="hero-content">
-    <span class="hero-kicker">Qualité de l’air CO₂</span>
-    <h1>Aerium</h1>
-    <p class="hero-sub">
-      Surveillance intelligente de la qualité de l’air en temps réel
-    </p>
+{% block title %}Aerium - CO₂ Air Quality Monitoring System{% endblock %}
 
-    <div class="system-pill paused">
-      <span class="dot"></span>
-      Analyse en pause
-    </div>
-
-    <div class="hero-actions" role="group" aria-label="Actions rapides">
-      <a href="/live" class="link primary">📊 Voir le live</a>
-      <button id="export-day-csv" class="link" aria-label="Exporter la journée en CSV">📥 Données en CSV</button>
-      <button id="export-day-pdf" class="link" aria-label="Exporter le rapport PDF">📄 Rapport PDF</button>
-      <div class="source-toggle">
-        <label for="overview-source" class="source-label">Source</label>
-        <select id="overview-source" aria-describedby="source-help">
-          <option value="real">Capteur réel</option>
-          <option value="sim">Simulation</option>
-        </select>
-        <span id="source-help" class="hint">Choisir la provenance des données</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ================= DAILY STATS ================= -->
-<section class="card" aria-label="Statistiques du jour">
-  <h2>Aujourd’hui en chiffres</h2>
-
-  <div class="overview-grid">
-    <div class="overview-widget highlight">
-      <span class="label">Moyenne CO₂</span>
-      <span class="value" id="avg-ppm">—</span>
-    </div>
-
-    <div class="overview-widget">
-      <span class="label">Pic maximum</span>
-      <span class="value" id="max-ppm">—</span>
-    </div>
-
-    <div class="overview-widget">
-      <span class="label">Temps en air dégradé</span>
-      <span class="value" id="bad-time">—</span>
-    </div>
-  </div>
-</section>
-
-<!-- ================= SYSTEM STATUS ================= -->
-<section class="card" aria-label="État du système">
-  <h2>État du système</h2>
-
-  <div class="system-status-row">
-    <div class="system-status-main">
-      <div class="card air-health">
-        <div class="air-status" id="air-status">—</div>
-        <div class="air-sub" id="air-sub">CO₂ actuel · — ppm</div>
-        <div class="air-advice" id="air-advice">—</div>
-      </div>
-
-      <div class="overview-grid">
-        <div class="overview-widget good">
-          <span class="label">Capteur</span>
-          <span class="value">Simulé</span>
+{% block content %}
+<div class="container">
+    <!-- Hero Section -->
+    <div class="row align-items-center py-5">
+        <div class="col-lg-6">
+            <h1 class="display-4 fw-bold">Monitor Air Quality in Real-Time</h1>
+            <p class="lead text-muted">
+                Aerium helps you track CO₂ levels in your spaces, ensuring optimal air quality 
+                for better health, productivity, and comfort.
+            </p>
+            <div class="d-grid gap-2 d-md-flex">
+                {% if not session.user_id %}
+                <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-user-plus"></i> Get Started
+                </a>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-secondary btn-lg">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </a>
+                {% else %}
+                <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-dashboard"></i> Go to Dashboard
+                </a>
+                {% endif %}
+            </div>
         </div>
-
-        <div class="overview-widget" id="analysis-widget">
-          <span class="label">Analyse</span>
-          <span class="value" id="analysis-status">Active</span>
+        <div class="col-lg-6">
+            <div class="text-center">
+                <i class="fas fa-wind text-primary" style="font-size: 200px; opacity: 0.3;"></i>
+            </div>
         </div>
-
-        <div class="overview-widget">
-          <span class="label">Seuils CO₂</span>
-          <span class="value" id="co2-thresholds">800 / 1200 ppm</span>
-          <!--
-          <span class="hint">
-            &lt; 800 : bon · 800–1200 : moyen · &gt; 1200 : mauvais
-          </span>
-          -->
-        </div>
-      </div>
     </div>
 
-    <!-- RIGHT: mini CO₂ thermometer -->
-    <div class="co2-thermo">
-      <div class="co2-track">
-        <div class="co2-fill" id="co2-fill"></div>
-      </div>
-      <div class="co2-value" id="co2-mini-value">— ppm</div>
+    <!-- Features Section -->
+    <div class="row py-5">
+        <div class="col-12 text-center mb-5">
+            <h2 class="fw-bold">Why Choose Aerium?</h2>
+            <p class="text-muted">Comprehensive air quality monitoring for every environment</p>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-clock text-primary" style="font-size: 48px;"></i>
+                    </div>
+                    <h5 class="card-title">Real-Time Monitoring</h5>
+                    <p class="card-text text-muted">
+                        Get instant updates on CO₂ levels with live WebSocket connections
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-broadcast-tower text-primary" style="font-size: 48px;"></i>
+                    </div>
+                    <h5 class="card-title">Multi-Sensor Support</h5>
+                    <p class="card-text text-muted">
+                        Manage multiple sensors with individual thresholds and locations
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-chart-line text-primary" style="font-size: 48px;"></i>
+                    </div>
+                    <h5 class="card-title">Data Analytics</h5>
+                    <p class="card-text text-muted">
+                        Analyze historical trends and get insights on air quality patterns
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-bell text-primary" style="font-size: 48px;"></i>
+                    </div>
+                    <h5 class="card-title">Smart Alerts</h5>
+                    <p class="card-text text-muted">
+                        Receive notifications when CO₂ levels exceed your thresholds
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-users text-primary" style="font-size: 48px;"></i>
+                    </div>
+                    <h5 class="card-title">Multi-User Access</h5>
+                    <p class="card-text text-muted">
+                        Secure authentication with role-based access control
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-download text-primary" style="font-size: 48px;"></i>
+                    </div>
+                    <h5 class="card-title">Export Data</h5>
+                    <p class="card-text text-muted">
+                        Download your data in CSV format for further analysis
+                    </p>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-</section>
 
-<!-- ================= QUICK ACCESS ================= -->
-<section class="card" aria-label="Accès rapide">
-  <h2>Accès rapide</h2>
+    <!-- Use Cases -->
+    <div class="row py-5 bg-light rounded">
+        <div class="col-12 text-center mb-4">
+            <h2 class="fw-bold">Perfect For</h2>
+        </div>
+        
+        <div class="col-md-3 text-center mb-3">
+            <i class="fas fa-building text-primary mb-2" style="font-size: 36px;"></i>
+            <h6>Offices</h6>
+            <p class="small text-muted">Improve productivity</p>
+        </div>
+        
+        <div class="col-md-3 text-center mb-3">
+            <i class="fas fa-school text-primary mb-2" style="font-size: 36px;"></i>
+            <h6>Schools</h6>
+            <p class="small text-muted">Optimal learning environment</p>
+        </div>
+        
+        <div class="col-md-3 text-center mb-3">
+            <i class="fas fa-home text-primary mb-2" style="font-size: 36px;"></i>
+            <h6>Homes</h6>
+            <p class="small text-muted">Healthy living spaces</p>
+        </div>
+        
+        <div class="col-md-3 text-center mb-3">
+            <i class="fas fa-industry text-primary mb-2" style="font-size: 36px;"></i>
+            <h6>Industry</h6>
+            <p class="small text-muted">Compliance monitoring</p>
+        </div>
+    </div>
 
-  <div class="action-buttons">
-    <a class="link primary" href="/live">📊 Données en direct</a>
-    <a class="link" href="/settings">⚙️ Paramètres</a>
-  </div>
-</section>
-
-<!-- ================= ABOUT ================= -->
-<section class="card" aria-label="À propos">
-  <h2>À propos</h2>
-  <p class="hint">
-    Aerium est un projet démontrant la surveillance intelligente de la qualité de l’air à partir de données mesurées et analysées en temps réel.
-  </p>
-</section>
+    <!-- CTA Section -->
+    <div class="row py-5 text-center">
+        <div class="col-12">
+            <h2 class="fw-bold mb-3">Ready to Breathe Better?</h2>
+            <p class="lead text-muted mb-4">Join Aerium today and start monitoring your air quality</p>
+            {% if not session.user_id %}
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-rocket"></i> Start Free Now
+            </a>
+            {% else %}
+            <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-dashboard"></i> Go to Dashboard
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
 {% endblock %}

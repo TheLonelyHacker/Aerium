@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Aerium{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="fas fa-dashboard"></i> Dashboard</h2>
+            <p class="text-muted">Real-time CO₂ monitoring overview</p>
+        </div>
+    </div>
+
+    {% if sensor_data %}
+    <!-- Sensor Cards -->
+    <div class="row">
+        {% for item in sensor_data %}
+        {% set sensor = item.sensor %}
+        {% set reading = item.latest_reading %}
+        {% set stats = item.stats %}
+        {% set alerts = item.alerts %}
+        
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card sensor-card h-100 shadow-sm">
+                <div class="card-header bg-{% if reading %}{{ reading.co2_level|co2_color }}{% else %}secondary{% endif %} text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-broadcast-tower"></i> {{ sensor.name }}
+                    </h5>
+                    <small><i class="fas fa-map-marker-alt"></i> {{ sensor.location }}</small>
+                </div>
+                <div class="card-body">
+                    {% if reading %}
+                    <!-- Current Reading -->
+                    <div class="text-center mb-3">
+                        <div class="display-4 fw-bold text-{% if reading %}{{ reading.co2_level|co2_color }}{% else %}secondary{% endif %}">
+                            {{ reading.co2_level|int }}
+                        </div>
+                        <div class="text-muted">ppm CO₂</div>
+                        <div class="small text-muted">
+                            <i class="fas fa-clock"></i> {{ reading.timestamp|datetime('%H:%M:%S') }}
+                        </div>
+                    </div>
+                    
+                    <!-- Additional Metrics -->
+                    {% if reading.temperature or reading.humidity %}
+                    <div class="row text-center mb-3">
+                        {% if reading.temperature %}
+                        <div class="col-6">
+                            <div class="small text-muted">Temperature</div>
+                            <div class="fw-bold">{{ reading.temperature }}°C</div>
+                        </div>
+                        {% endif %}
+                        {% if reading.humidity %}
+                        <div class="col-6">
+                            <div class="small text-muted">Humidity</div>
+                            <div class="fw-bold">{{ reading.humidity }}%</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- 24h Statistics -->
+                    {% if stats.count %}
+                    <div class="border-top pt-3 mb-3">
+                        <div class="small text-muted mb-2"><strong>24h Statistics</strong></div>
+                        <div class="row small">
+                            <div class="col-4 text-center">
+                                <div class="text-muted">Avg</div>
+                                <div class="fw-bold">{{ stats.avg_co2|int }}</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div class="text-muted">Min</div>
+                                <div class="fw-bold text-success">{{ stats.min_co2|int }}</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div class="text-muted">Max</div>
+                                <div class="fw-bold text-danger">{{ stats.max_co2|int }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Active Alerts -->
+                    {% if alerts %}
+                    <div class="alert alert-warning alert-sm mb-3">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        <strong>{{ alerts|length }} Active Alert(s)</strong>
+                    </div>
+                    {% endif %}
+                    
+                    {% else %}
+                    <!-- No Data -->
+                    <div class="text-center py-4">
+                        <i class="fas fa-chart-line text-muted" style="font-size: 48px;"></i>
+                        <p class="text-muted mt-3">No readings yet</p>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('sensors.details', sensor_id=sensor.id) }}" 
+                           class="btn btn-sm btn-primary flex-fill">
+                            <i class="fas fa-chart-line"></i> Details
+                        </a>
+                        <button class="btn btn-sm btn-success" 
+                                onclick="simulateReading({{ sensor.id }})">
+                            <i class="fas fa-play"></i> Simulate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% else %}
+    <!-- No Sensors -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-broadcast-tower text-muted" style="font-size: 64px;"></i>
+                    <h4 class="mt-4">No Sensors Yet</h4>
+                    <p class="text-muted">Create your first sensor to start monitoring CO₂ levels</p>
+                    <a href="{{ url_for('sensors.create') }}" class="btn btn-primary btn-lg mt-3">
+                        <i class="fas fa-plus"></i> Create Your First Sensor
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Initialize Socket.IO
+const socket = io();
+
+socket.on('connect', function() {
+    console.log('Connected to server');
+});
+
+socket.on('new_reading', function(data) {
+    console.log('New reading received:', data);
+    // Reload the page to show new data
+    location.reload();
+});
+
+function simulateReading(sensorId) {
+    fetch(`/sensors/${sensorId}/simulate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Reading simulated:', data.reading);
+            // Page will reload via WebSocket event
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+</script>
+{% endblock %}

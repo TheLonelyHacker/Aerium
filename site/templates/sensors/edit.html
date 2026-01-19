@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Sensor - Aerium{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-edit"></i> Edit Sensor</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{{ url_for('sensors.edit', sensor_id=sensor.id) }}">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Sensor Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   value="{{ sensor.name }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Location *</label>
+                            <input type="text" class="form-control" id="location" name="location" 
+                                   value="{{ sensor.location }}" required>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="mb-3">CO₂ Thresholds (ppm)</h5>
+                        
+                        <div class="mb-3">
+                            <label for="threshold_good" class="form-label">
+                                <span class="badge bg-success">Good</span> Threshold
+                            </label>
+                            <input type="number" class="form-control" id="threshold_good" 
+                                   name="threshold_good" value="{{ sensor.threshold_good }}" 
+                                   min="0" max="5000">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="threshold_moderate" class="form-label">
+                                <span class="badge bg-warning">Moderate</span> Threshold
+                            </label>
+                            <input type="number" class="form-control" id="threshold_moderate" 
+                                   name="threshold_moderate" value="{{ sensor.threshold_moderate }}" 
+                                   min="0" max="5000">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="threshold_poor" class="form-label">
+                                <span class="badge bg-danger">Poor</span> Threshold
+                            </label>
+                            <input type="number" class="form-control" id="threshold_poor" 
+                                   name="threshold_poor" value="{{ sensor.threshold_poor }}" 
+                                   min="0" max="5000">
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary flex-fill">
+                                <i class="fas fa-save"></i> Save Changes
+                            </button>
+                            <a href="{{ url_for('sensors.index') }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
