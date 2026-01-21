@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}{{ sensor.name }} - Aerium{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="fas fa-broadcast-tower"></i> {{ sensor.name }}</h2>
+            <p class="text-muted">
+                <i class="fas fa-map-marker-alt"></i> {{ sensor.location }}
+            </p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <button class="btn btn-success" onclick="simulateReading()">
+                <i class="fas fa-play"></i> Simulate Reading
+            </button>
+            <a href="{{ url_for('sensors.edit', sensor_id=sensor.id) }}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> Edit
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted">24h Average</h6>
+                    <h3 class="mb-0">{{ stats_24h.avg_co2|int if stats_24h.avg_co2 else 'N/A' }}</h3>
+                    <small class="text-muted">ppm CO₂</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted">24h Min/Max</h6>
+                    <h3 class="mb-0">
+                        {{ stats_24h.min_co2|int if stats_24h.min_co2 else 'N/A' }} / 
+                        {{ stats_24h.max_co2|int if stats_24h.max_co2 else 'N/A' }}
+                    </h3>
+                    <small class="text-muted">ppm CO₂</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted">7-Day Average</h6>
+                    <h3 class="mb-0">{{ stats_7d.avg_co2|int if stats_7d.avg_co2 else 'N/A' }}</h3>
+                    <small class="text-muted">ppm CO₂</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted">Total Readings</h6>
+                    <h3 class="mb-0">{{ stats_24h.count if stats_24h.count else 0 }}</h3>
+                    <small class="text-muted">last 24 hours</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts -->
+    {% if alerts %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-warning shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Active Alerts</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        {% for alert in alerts %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-{{ 'danger' if alert.alert_type == 'critical' else 'warning' }} me-2">
+                                    {{ alert.alert_type|title }}
+                                </span>
+                                {{ alert.message }}
+                                <small class="text-muted d-block">{{ alert.created_at|datetime }}</small>
+                            </div>
+                            <button class="btn btn-sm btn-success" onclick="resolveAlert({{ alert.id }})">
+                                <i class="fas fa-check"></i> Resolve
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Chart -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-line"></i> CO₂ Levels (Last 24 Hours)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="co2Chart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Readings Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> Recent Readings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>CO₂ Level</th>
+                                    <th>Temperature</th>
+                                    <th>Humidity</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reading in readings %}
+                                <tr>
+                                    <td>{{ reading.timestamp|datetime }}</td>
+                                    <td>
+                                        <strong class="text-{{ reading.co2_level|co2_color }}">
+                                            {{ reading.co2_level|int }} ppm
+                                        </strong>
+                                    </td>
+                                    <td>{{ reading.temperature if reading.temperature else 'N/A' }}</td>
+                                    <td>{{ reading.humidity if reading.humidity else 'N/A' }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ reading.co2_level|co2_color }}">
+                                            {{ reading.co2_level|co2_status|title }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">No readings yet</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Chart data
+const readings = {{ readings|tojson }};
+const sensor = {{ sensor|tojson }};
+
+// Prepare chart data
+const labels = readings.map(r => new Date(r.timestamp).toLocaleTimeString()).reverse();
+const data = readings.map(r => r.co2_level).reverse();
+
+// Create chart
+const ctx = document.getElementById('co2Chart').getContext('2d');
+const co2Chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'CO₂ Level (ppm)',
+            data: data,
+            borderColor: 'rgb(13, 110, 253)',
+            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+            tension: 0.3,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                display: true
+            },
+            annotation: {
+                annotations: {
+                    good: {
+                        type: 'line',
+                        yMin: sensor.threshold_good,
+                        yMax: sensor.threshold_good,
+                        borderColor: 'rgb(25, 135, 84)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        label: {
+                            content: 'Good',
+                            enabled: true
+                        }
+                    },
+                    moderate: {
+                        type: 'line',
+                        yMin: sensor.threshold_moderate,
+                        yMax: sensor.threshold_moderate,
+                        borderColor: 'rgb(255, 193, 7)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        label: {
+                            content: 'Moderate',
+                            enabled: true
+                        }
+                    },
+                    poor: {
+                        type: 'line',
+                        yMin: sensor.threshold_poor,
+                        yMax: sensor.threshold_poor,
+                        borderColor: 'rgb(220, 53, 69)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        label: {
+                            content: 'Poor',
+                            enabled: true
+                        }
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'CO₂ Level (ppm)'
+                }
+            },
+            x: {
+                title: {
+                    display: true,
+                    text: 'Time'
+                }
+            }
+        }
+    }
+});
+
+// Socket.IO for real-time updates
+const socket = io();
+socket.on('new_reading', function(data) {
+    if (data.sensor_id === {{ sensor.id }}) {
+        location.reload();
+    }
+});
+
+function simulateReading() {
+    fetch(`/sensors/{{ sensor.id }}/simulate`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Reading simulated');
+        }
+    });
+}
+
+function resolveAlert(alertId) {
+    fetch(`/dashboard/api/alert/${alertId}/resolve`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+}
+</script>
+{% endblock %}
